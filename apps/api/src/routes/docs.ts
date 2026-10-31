@@ -1,6 +1,15 @@
 import { Hono } from 'hono';
-import type { DocDetail, DocKind, DocMember, DocRole, StorageState } from '@lingshu/shared';
-import { documentNamesFor, pickShard } from '@lingshu/shared';
+import type {
+  DocDetail,
+  DocKind,
+  DocMember,
+  DocRole,
+  DocVersion,
+  DocVersionSnapshot,
+  StorageState,
+  VersionPrecision,
+} from '@lingshu/shared';
+import { LIMITS, documentNamesFor, pickShard } from '@lingshu/shared';
 import { requireAuth } from '../auth.js';
 import { query, withTransaction } from '../db.js';
 import { env } from '../env.js';
@@ -245,4 +254,108 @@ docsRoutes.get('/:id/storage', async (c) => {
     version: row ? Number(row.version) : 0,
   };
   return c.json({ storage });
+});
+
+interface DocAccessRow {
+  kind: DocKind;
+  role: DocRole;
+}
+
+interface VersionRow {
+  id: string;
+  document_name: string;
+  version: string;
+  created_at: Date;
+}
+
+interface VersionSnapshotRow extends VersionRow {
+  snapshot: { format: string; base64: string };
+}
+
+/** 版本列表条数上限：200 人 30 秒一版，7 天内全量也远超一屏，列表只取最近若干条。 */
+const VERSION_LIMIT = 60;
+
+/**
+ * 版本精度：7 天内保留完整 op 流，可回滚到该快照时刻的完整内容（内容级）；
+ * 超出窗口仅保留每天最早一份快照（快照级）。
+ */
+function versionPrecision(createdAt: Date): VersionPrecision {
+  const cutoff = Date.now() - LIMITS.opLogRetentionDays * 24 * 60 * 60 * 1000;
+  return createdAt.getTime() >= cutoff ? 'content' : 'snapshot';
+}
+
+async function docAccess(documentId: string, userId: string): Promise<DocAccessRow | null> {
+  const rows = await query<DocAccessRow>(
+    `select d.kind, m.role from documents d join doc_members m on m.document_id = d.id
+      where d.id = $1 and m.user_id = $2`,
+    [documentId, userId],
+  );
+  return rows[0] ?? null;
+}
+
+/** 版本历史列表：成员可见，按时间倒序。 */
+docsRoutes.get('/:id/versions', async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id');
+  if (!UUID_RE.test(id)) return c.json({ error: 'invalid id' }, 400);
+
+  const access = await docAccess(id, user.id);
+  if (!access) return c.json({ error: 'not found' }, 404);
+
+  const rows = await query<VersionRow>(
+    `select id, document_name, version, created_at
+       from doc_snapshot_versions
+      where document_name = any($1)
+      order by created_at desc
+      limit ${VERSION_LIMIT}`,
+    [documentNamesFor(id, access.kind)],
+  );
+
+  const versions: DocVersion[] = rows.map((row) => ({
+    id: row.id,
+    documentName: row.document_name,
+    version: Number(row.version),
+    createdAt: row.created_at.toISOString(),
+    precision: versionPrecision(row.created_at),
+  }));
+  return c.json({ versions });
+});
+
+/**
+ * 恢复历史版本：仅可写角色可取回快照内容。
+ * 真正的回滚由持有协同连接的客户端把快照内容写回当前 Y.Doc，
+ * 这样删除与插入都走正常协同事务，在线成员无需重连即可收敛。
+ */
+docsRoutes.post('/:id/versions/:versionId/restore', async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id');
+  const versionId = c.req.param('versionId');
+  if (!UUID_RE.test(id) || !/^\d+$/.test(versionId)) return c.json({ error: 'invalid id' }, 400);
+
+  const access = await docAccess(id, user.id);
+  if (!access) return c.json({ error: 'not found' }, 404);
+  if (access.role === 'spectator') return c.json({ error: '只读成员不能恢复历史版本' }, 403);
+
+  const rows = await query<VersionSnapshotRow>(
+    `select id, document_name, version, created_at, snapshot
+       from doc_snapshot_versions
+      where id = $1`,
+    [versionId],
+  );
+  const row = rows[0];
+  // 只允许恢复属于该文档的 Y.Doc，避免越权读取其他文档的快照
+  if (!row || !documentNamesFor(id, access.kind).includes(row.document_name)) {
+    return c.json({ error: '版本不存在' }, 404);
+  }
+
+  const version: DocVersionSnapshot = {
+    id: row.id,
+    documentName: row.document_name,
+    version: Number(row.version),
+    createdAt: row.created_at.toISOString(),
+    precision: versionPrecision(row.created_at),
+    format: row.snapshot.format,
+    base64: row.snapshot.base64,
+  };
+  return c.json({ version });
 });

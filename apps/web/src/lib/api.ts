@@ -1,4 +1,13 @@
-import type { DocDetail, DocKind, DocMember, DocRole, SessionUser, StorageState } from '@lingshu/shared';
+import type {
+  DocDetail,
+  DocKind,
+  DocMember,
+  DocRole,
+  DocVersion,
+  DocVersionSnapshot,
+  SessionUser,
+  StorageState,
+} from '@lingshu/shared';
 
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8787';
 const TOKEN_KEY = 'lingshu.token';
@@ -126,4 +135,21 @@ export async function removeMember(id: string, userId: string): Promise<DocMembe
 export async function getStorageState(id: string): Promise<StorageState> {
   const data = await request<{ storage: StorageState }>(`/api/docs/${id}/storage`);
   return data.storage;
+}
+
+export async function listVersions(id: string): Promise<DocVersion[]> {
+  const data = await request<{ versions: DocVersion[] }>(`/api/docs/${id}/versions`);
+  return data.versions;
+}
+
+/** 取回历史版本的快照内容；仅 owner / editor 可用，spectator 会被服务端拒绝。 */
+export async function fetchVersionSnapshot(
+  id: string,
+  versionId: string,
+): Promise<DocVersionSnapshot> {
+  const data = await request<{ version: DocVersionSnapshot }>(
+    `/api/docs/${id}/versions/${versionId}/restore`,
+    { method: 'POST' },
+  );
+  return data.version;
 }

@@ -41,6 +41,20 @@ create table if not exists doc_snapshots (
 
 create index if not exists doc_snapshots_document_id_idx on doc_snapshots (document_id);
 
+-- 快照历史：每次落盘追加一条，供版本列表与回滚使用。
+-- 7 天内保留全部版本；7–90 天只保留每天最早的一条；90 天以上清理（见 persistence.ts 的裁剪逻辑）。
+create table if not exists doc_snapshot_versions (
+  id bigserial primary key,
+  document_name text not null,
+  document_id uuid references documents (id) on delete cascade,
+  snapshot jsonb not null,
+  version bigint not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists doc_snapshot_versions_name_time_idx
+  on doc_snapshot_versions (document_name, created_at desc);
+
 -- op 流：仅保留 7 天，用于近期内容级回滚；超出窗口后只保留快照级回滚
 create table if not exists doc_op_log (
   id bigserial primary key,

@@ -28,3 +28,19 @@ export function destroySession(session: CollabSession): void {
   session.provider.destroy();
   session.doc.destroy();
 }
+
+/** 历史版本快照以 base64 传输，这里转回 Yjs 二进制。 */
+export function decodeSnapshot(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+/**
+ * 表格恢复用的一次性协同消息：opLog 被整体替换后，其他客户端无法增量应用，
+ * 必须重载页面重建 Univer；服务端只转发这一种控制消息。
+ */
+export { RESTORE_STATELESS_PAYLOAD as RESTORE_STATELESS } from '@lingshu/shared';

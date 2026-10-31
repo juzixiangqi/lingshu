@@ -1,6 +1,12 @@
 import { Database } from '@hocuspocus/extension-database';
 import { Server } from '@hocuspocus/server';
-import { LIMITS, docIdFromDocumentName, isSpectator, type CollabContext } from '@lingshu/shared';
+import {
+  LIMITS,
+  RESTORE_STATELESS_PAYLOAD,
+  docIdFromDocumentName,
+  isSpectator,
+  type CollabContext,
+} from '@lingshu/shared';
 import { env } from './env.js';
 import { authenticateDocument } from './impl/auth.js';
 import { addLiveConnection, removeLiveConnection } from './impl/liveConnections.js';
@@ -173,6 +179,16 @@ export function createCollabServer(): Server<CollabContext> {
     onDisconnect: async ({ documentName, socketId, context }) => {
       releaseSlot(documentName, socketId);
       removeLiveConnection(context?.documentId ?? docIdFromDocumentName(documentName), socketId);
+    },
+
+    /**
+     * 客户端发出的 stateless 消息默认只进服务端，这里只放行“表格版本恢复”一种，
+     * 由服务端转发给同文档其余连接，让它们重载页面重建 Univer。
+     */
+    onStateless: async ({ document, payload }) => {
+      if (payload === RESTORE_STATELESS_PAYLOAD) {
+        document.broadcastStateless(payload);
+      }
     },
 
     beforeHandleAwareness: async ({ states, awareness, context, documentName }) => {

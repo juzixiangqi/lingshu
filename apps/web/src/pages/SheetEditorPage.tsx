@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import * as Y from 'yjs';
 import {
   LocaleType,
   createUniver,
@@ -18,11 +19,18 @@ import {
   getCollabBridgeServices,
   type CollabOp,
 } from '@8space-lab/univer-collab-bridge';
-import { LIMITS, workbookDocumentName, type DocDetail } from '@lingshu/shared';
+import { LIMITS, workbookDocumentName, type DocDetail, type DocVersionSnapshot } from '@lingshu/shared';
 import { getCurrentUser, getDoc, getToken } from '../lib/api';
-import { connectDocument, destroySession, type CollabSession } from '../lib/collab';
+import {
+  RESTORE_STATELESS,
+  connectDocument,
+  decodeSnapshot,
+  destroySession,
+  type CollabSession,
+} from '../lib/collab';
 import { useSaveStatus } from '../lib/saveStatus';
 import { MemberPanel } from '../components/MemberPanel';
+import { VersionPanel } from '../components/VersionPanel';
 
 /**
  * 三个 sheet 用于验证跨 sheet 协同：bridge 的 op 带 subUnitId，
@@ -89,6 +97,38 @@ export function SheetEditorPage() {
   const [error, setError] = useState('');
   const save = useSaveStatus(id, session);
 
+  /**
+   * 表格版本恢复：把历史快照的 opLog 整体写回当前 Y.Doc，再让所有在线客户端重载。
+   * bridge 按 opLog 长度增量消费，无法应用“历史 op 被删除”这种变化，
+   * 因此恢复后必须重载页面重建 Univer，而不是就地重放。
+   */
+  const restore = useCallback(
+    async (snapshot: DocVersionSnapshot) => {
+      if (!session) throw new Error('表格尚未连接，请稍后重试');
+      if (snapshot.documentName !== session.documentName) {
+        throw new Error('该版本不属于当前表格');
+      }
+
+      const restored = new Y.Doc();
+      let ops: CollabOp[];
+      try {
+        Y.applyUpdate(restored, decodeSnapshot(snapshot.base64));
+        ops = JSON.parse(JSON.stringify(restored.getArray<CollabOp>('opLog').toArray())) as CollabOp[];
+      } finally {
+        restored.destroy();
+      }
+
+      const live = session.doc.getArray<CollabOp>('opLog');
+      live.delete(0, live.length);
+      live.insert(0, ops);
+
+      // 通知同文档的其他客户端重载；本地兜底重载，避免桥状态与 opLog 不一致
+      session.provider.sendStateless(RESTORE_STATELESS);
+      window.setTimeout(() => window.location.reload(), 800);
+    },
+    [session],
+  );
+
   useEffect(() => {
     let disposed = false;
     let disposeUniver: (() => void) | null = null;
@@ -105,6 +145,10 @@ export function SheetEditorPage() {
         session = connectDocument(doc, workbookName);
         session.provider.on('status', (event: { status: string }) => setStatus(event.status));
         session.provider.on('synced', () => setStatus('已同步'));
+        // 其他成员恢复版本后，本端无法增量应用被删除的 op，直接重载重建工作簿
+        session.provider.on('stateless', ({ payload }: { payload: string }) => {
+          if (payload === RESTORE_STATELESS) window.location.reload();
+        });
         if (!disposed) setSession(session);
 
         const me = getCurrentUser();
@@ -174,6 +218,7 @@ export function SheetEditorPage() {
           </p>
         </div>
         <div className="actions">
+          {detail ? <VersionPanel docId={detail.id} role={detail.role} onRestore={restore} /> : null}
           {detail ? <MemberPanel docId={detail.id} role={detail.role} /> : null}
           <button onClick={() => navigate('/')}>返回列表</button>
         </div>

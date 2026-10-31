@@ -3,11 +3,17 @@ import { query } from '../db.js';
 
 interface SnapshotRow {
   snapshot: { format: string; base64: string };
+  version: string;
 }
 
 /**
  * 快照以 JSONB 存 base64，格式为 { format: 'yjs-v1', base64 }。
- * op 流单独入表，仅保留 7 天（清理任务见设计文档 M3 加固项）。
+ * 每次落盘同时追加一条历史版本；op 流单独入表，仅保留 7 天。
+ *
+ * 版本裁剪（与设计文档 §3.3 的精度分级对应）：
+ * - 7 天内保留全部版本，支撑内容级回滚；
+ * - 7–90 天只保留每天最早的一条快照，对应“快照级回滚”；
+ * - 90 天以上与超窗口的 op 流一并清理，避免无限膨胀。
  */
 export const persistence: DocPersistence = {
   async load(documentName: string): Promise<Uint8Array | null> {
@@ -25,15 +31,45 @@ export const persistence: DocPersistence = {
       format: 'yjs-v1',
       base64: Buffer.from(payload.state).toString('base64'),
     };
-    await query(
+    const rows = await query<SnapshotRow>(
       `insert into doc_snapshots (document_name, document_id, snapshot, version, updated_at)
        values ($1, $2, $3::jsonb, 1, now())
        on conflict (document_name) do update
          set snapshot = excluded.snapshot,
              document_id = excluded.document_id,
              version = doc_snapshots.version + 1,
-             updated_at = now()`,
+             updated_at = now()
+       returning snapshot, version`,
       [payload.documentName, payload.documentId, JSON.stringify(snapshot)],
+    );
+    const row = rows[0];
+    if (!row) return;
+
+    await query(
+      `insert into doc_snapshot_versions (document_name, document_id, snapshot, version)
+       values ($1, $2, $3::jsonb, $4)`,
+      [payload.documentName, payload.documentId, JSON.stringify(row.snapshot), row.version],
+    );
+
+    await query(
+      `delete from doc_snapshot_versions v
+        where v.document_name = $1
+          and v.created_at < now() - interval '7 days'
+          and v.id not in (
+            select distinct on (date_trunc('day', w.created_at)) w.id
+              from doc_snapshot_versions w
+             where w.document_name = $1
+               and w.created_at < now() - interval '7 days'
+               and w.created_at >= now() - interval '90 days'
+             order by date_trunc('day', w.created_at), w.created_at
+          )`,
+      [payload.documentName],
+    );
+
+    await query(
+      `delete from doc_op_log
+        where document_name = $1 and created_at < now() - interval '7 days'`,
+      [payload.documentName],
     );
   },
 

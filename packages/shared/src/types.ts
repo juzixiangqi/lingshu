@@ -43,6 +43,27 @@ export interface StorageState {
 }
 
 /**
+ * 版本历史条目。precision 由快照时间与 op 流保留窗口决定：
+ * - content：7 天内，可恢复到该快照时刻的完整内容；
+ * - snapshot：超出 7 天，仅保留快照级回滚。
+ */
+export type VersionPrecision = 'content' | 'snapshot';
+
+export interface DocVersion {
+  id: string;
+  documentName: string;
+  version: number;
+  createdAt: string;
+  precision: VersionPrecision;
+}
+
+/** 恢复所需的快照内容，仅对可写角色返回。 */
+export interface DocVersionSnapshot extends DocVersion {
+  format: string;
+  base64: string;
+}
+
+/**
  * Hocuspocus 鉴权上下文中携带的信息。
  * 契约由人工定义，AI 只填充实现。
  */

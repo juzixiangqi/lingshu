@@ -9,3 +9,10 @@ export const ACL_EVENT_CHANNEL = 'lingshu:acl';
 export interface AclChangeEvent {
   documentId: string;
 }
+
+/**
+ * 表格版本恢复的一次性协同消息。
+ * opLog 被整体替换后，其他客户端无法增量应用，必须重载页面重建 Univer；
+ * 协同分片只转发这一种控制消息，避免客户端把网关当广播器。
+ */
+export const RESTORE_STATELESS_PAYLOAD = JSON.stringify({ type: 'lingshu:restore' });

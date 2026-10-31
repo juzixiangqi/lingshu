@@ -1,16 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { EditorContent, useEditor } from '@tiptap/react';
-import { Extension } from '@tiptap/core';
+import { Editor, Extension } from '@tiptap/core';
 import { Plugin } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCaret from '@tiptap/extension-collaboration-caret';
-import { LIMITS, type DocDetail, type DocRole } from '@lingshu/shared';
+import * as Y from 'yjs';
+import { LIMITS, type DocDetail, type DocRole, type DocVersionSnapshot } from '@lingshu/shared';
 import { getCurrentUser, getDoc, getToken } from '../lib/api';
-import { connectDocument, destroySession, type CollabSession } from '../lib/collab';
+import { connectDocument, decodeSnapshot, destroySession, type CollabSession } from '../lib/collab';
 import { useSaveStatus } from '../lib/saveStatus';
 import { MemberPanel } from '../components/MemberPanel';
+import { VersionPanel } from '../components/VersionPanel';
 
 const ROLE_LABEL: Record<DocRole, string> = {
   owner: '所有者',
@@ -42,16 +44,20 @@ const CharLimit = Extension.create({
   },
 });
 
+type RestoreHandler = (snapshot: DocVersionSnapshot) => Promise<void>;
+
 interface EditorProps {
   detail: DocDetail;
   session: CollabSession;
+  /** 把版本恢复能力注册给页面顶栏的版本面板。 */
+  registerRestore: (handler: RestoreHandler | null) => void;
 }
 
 /**
  * 文档协同：TipTap + Yjs，正文走 `<docId>/body` 单个 Y.Doc。
  * spectator 不渲染远端光标（不订阅 awareness），与适配层的一致治理规则对齐。
  */
-function CollabEditor({ detail, session }: EditorProps) {
+function CollabEditor({ detail, session, registerRestore }: EditorProps) {
   const user = getCurrentUser();
   const editable = detail.role !== 'spectator';
 
@@ -91,6 +97,40 @@ function CollabEditor({ detail, session }: EditorProps) {
       editor.off('update', update);
     };
   }, [editor]);
+
+  useEffect(() => {
+    if (!editor) {
+      registerRestore(null);
+      return;
+    }
+    /**
+     * 版本恢复：把历史快照先还原成一个临时协同编辑器，取其 ProseMirror JSON，
+     * 再通过 setContent 写回当前编辑器。这样删除与插入都走正常协同事务，
+     * 在线成员无需重连即可收敛；直接改写 Y.Doc 反而无法表达删除后重新插入。
+     */
+    registerRestore(async (snapshot) => {
+      if (snapshot.documentName !== session.documentName) {
+        throw new Error('该版本不属于当前文档');
+      }
+      const restored = new Y.Doc();
+      Y.applyUpdate(restored, decodeSnapshot(snapshot.base64));
+      // 临时编辑器挂在一个游离节点上，只为复用 y-sync 的 Y.Doc → JSON 转换
+      const temp = new Editor({
+        element: document.createElement('div'),
+        extensions: [
+          StarterKit.configure({ undoRedo: false }),
+          Collaboration.configure({ document: restored }),
+        ],
+      });
+      try {
+        editor.commands.setContent(temp.getJSON());
+      } finally {
+        temp.destroy();
+        restored.destroy();
+      }
+    });
+    return () => registerRestore(null);
+  }, [editor, session, registerRestore]);
 
   // 用户继续输入/粘贴导致超限时，给出即时反馈并引导拆分
   useEffect(() => {
@@ -193,6 +233,18 @@ export function DocEditorPage() {
   const [error, setError] = useState('');
   const save = useSaveStatus(id, session);
 
+  // 版本面板与编辑器解耦：编辑器就绪后把自己的恢复实现注册进来
+  const restoreRef = useRef<RestoreHandler | null>(null);
+  const registerRestore = useCallback((handler: RestoreHandler | null) => {
+    restoreRef.current = handler;
+  }, []);
+
+  const restore = useCallback(async (snapshot: DocVersionSnapshot) => {
+    const handler = restoreRef.current;
+    if (!handler) throw new Error('编辑器尚未就绪，请稍后重试');
+    await handler(snapshot);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     let created: CollabSession | null = null;
@@ -249,6 +301,7 @@ export function DocEditorPage() {
           </p>
         </div>
         <div className="actions">
+          {detail ? <VersionPanel docId={detail.id} role={detail.role} onRestore={restore} /> : null}
           {detail ? <MemberPanel docId={detail.id} role={detail.role} /> : null}
           <button onClick={() => navigate('/')}>返回列表</button>
         </div>
@@ -257,7 +310,9 @@ export function DocEditorPage() {
       {error ? <p className="error">{error}</p> : null}
 
       <main className="editor-shell">
-        {detail && session ? <CollabEditor detail={detail} session={session} /> : null}
+        {detail && session ? (
+          <CollabEditor detail={detail} session={session} registerRestore={registerRestore} />
+        ) : null}
       </main>
     </div>
   );
