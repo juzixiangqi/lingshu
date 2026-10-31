@@ -13,6 +13,11 @@ create table if not exists users (
 -- 账号密码登录。scrypt$<salt>$<hash>；历史 dev 用户为空，需注册后才可密码登录
 alter table users add column if not exists password_hash text;
 
+-- IM（若依）统一登录：users 降级为 IM 用户的本地镜像，im_user_id 保存 IM 侧 userId。
+-- 文档权限仍以本地 uuid 关联，IM 用户 ID 的类型（Long/字符串）不影响业务表。
+alter table users add column if not exists im_user_id text;
+create unique index if not exists users_im_user_id_key on users (im_user_id);
+
 create table if not exists documents (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references users (id) on delete cascade,

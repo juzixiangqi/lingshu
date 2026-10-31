@@ -47,8 +47,14 @@ function toSessionUser(row: UserRow): SessionUser {
 
 export const authRoutes = new Hono();
 
+const IM_MODE_ERROR = '当前为 IM 统一登录模式，请从 IM 进入';
+
+/** 前端据此决定展示登录表单还是“请从 IM 进入”的提示。 */
+authRoutes.get('/mode', (c) => c.json({ mode: env.authMode }));
+
 /** 账号密码注册，成功后直接签发会话 token。 */
 authRoutes.post('/register', async (c) => {
+  if (env.authMode === 'im') return c.json({ error: IM_MODE_ERROR }, 403);
   const body = (await c.req.json().catch(() => ({}))) as RegisterBody;
   const email = normalizeEmail(body.email);
   const password = body.password ?? '';
@@ -78,6 +84,7 @@ authRoutes.post('/register', async (c) => {
 });
 
 authRoutes.post('/login', async (c) => {
+  if (env.authMode === 'im') return c.json({ error: IM_MODE_ERROR }, 403);
   const body = (await c.req.json().catch(() => ({}))) as LoginBody;
   const email = normalizeEmail(body.email);
   const password = body.password ?? '';
@@ -106,6 +113,7 @@ authRoutes.get('/me', requireAuth, (c) => {
  * 本地开发与 M0 压测脚本用的免密登录，生产环境由 DEV_LOGIN_ENABLED=false 关闭。
  */
 authRoutes.post('/dev-login', async (c) => {
+  if (env.authMode === 'im') return c.json({ error: IM_MODE_ERROR }, 403);
   if (!env.devLoginEnabled) {
     return c.json({ error: 'dev-login 已关闭' }, 403);
   }

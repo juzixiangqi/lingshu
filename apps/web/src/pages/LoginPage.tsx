@@ -1,19 +1,41 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { getToken, login, register } from '../lib/api';
+import { getAuthMode, getToken, login, register } from '../lib/api';
 
 type Mode = 'login' | 'register';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>('login');
+  const [authMode, setAuthMode] = useState<'local' | 'im' | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    void getAuthMode()
+      .then(setAuthMode)
+      .catch(() => setAuthMode('local'));
+  }, []);
+
   if (getToken()) return <Navigate to="/" replace />;
+
+  if (authMode === null) {
+    return <div className="auth-page" />;
+  }
+
+  if (authMode === 'im') {
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <h1>灵枢</h1>
+          <p className="muted">当前为 IM 统一登录模式，请从 IM 工作台进入文档协同。</p>
+        </div>
+      </div>
+    );
+  }
 
   async function handleSubmit(event: FormEvent): Promise<void> {
     event.preventDefault();

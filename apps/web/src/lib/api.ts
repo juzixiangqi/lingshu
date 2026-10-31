@@ -23,8 +23,38 @@ interface AuthResponse {
   user: SessionUser;
 }
 
+/**
+ * IM 统一登录的入口链接可携带 ?token=<IM JWT>。
+ * 首次打开时写入本地会话并清掉地址栏里的 token，避免被复制传播。
+ */
+function bootstrapTokenFromUrl(): void {
+  const url = new URL(window.location.href);
+  const token = url.searchParams.get('token');
+  if (!token) return;
+  localStorage.setItem(TOKEN_KEY, token);
+  url.searchParams.delete('token');
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
+bootstrapTokenFromUrl();
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
+}
+
+/** 后端当前的登录模式：local（自建账号）或 im（从 IM 进入）。 */
+export async function getAuthMode(): Promise<'local' | 'im'> {
+  const response = await fetch(`${BASE_URL}/api/auth/mode`);
+  const data = (await response.json().catch(() => ({}))) as { mode?: string };
+  return data.mode === 'im' ? 'im' : 'local';
+}
+
+/** 用当前 token 拉一次用户信息，并写回本地缓存（IM 入口只带 token，不带用户信息）。 */
+export async function fetchMe(): Promise<SessionUser> {
+  const data = await request<{ user: SessionUser }>('/api/auth/me');
+  const token = getToken();
+  if (token) setSession(token, data.user);
+  return data.user;
 }
 
 export function getCurrentUser(): SessionUser | null {

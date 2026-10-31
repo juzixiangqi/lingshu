@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { DocDetail, DocKind } from '@lingshu/shared';
-import { createDoc, getCurrentUser, getToken, listDocs, logout } from '../lib/api';
+import type { DocDetail, DocKind, SessionUser } from '@lingshu/shared';
+import { createDoc, fetchMe, getCurrentUser, getToken, listDocs, logout } from '../lib/api';
 import { NotificationBell } from '../components/NotificationBell';
 
 const KIND_LABEL: Record<DocKind, string> = {
@@ -17,7 +17,8 @@ const ROLE_LABEL: Record<DocDetail['role'], string> = {
 
 export function DocListPage() {
   const navigate = useNavigate();
-  const user = getCurrentUser();
+  // IM 入口只带 token，用户信息需要向服务端补拉一次
+  const [user, setUser] = useState<SessionUser | null>(getCurrentUser());
   const [docs, setDocs] = useState<DocDetail[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -40,6 +41,11 @@ export function DocListPage() {
 
   useEffect(() => {
     void refresh();
+    if (!getCurrentUser()) {
+      void fetchMe()
+        .then(setUser)
+        .catch(() => undefined);
+    }
   }, []);
 
   async function handleCreate(kind: DocKind): Promise<void> {

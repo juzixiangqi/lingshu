@@ -32,6 +32,16 @@ export const env = {
   databaseUrl: readString('DATABASE_URL', 'postgres://lingshu:lingshu@localhost:5432/lingshu'),
   redisUrl: readString('REDIS_URL', 'redis://localhost:6379'),
   jwtSecret: readString('JWT_SECRET', 'dev-only-change-me'),
+  /** local：自建账号密码登录；im：信任若依 IM 签发的 token */
+  authMode: (readString('AUTH_MODE', 'local') === 'im' ? 'im' : 'local') as 'local' | 'im',
+  im: {
+    /** 若依 /getInfo 完整地址；留空则 im 模式下所有请求都会因身份服务不可用被拒绝 */
+    userinfoUrl: readString('IM_USERINFO_URL', ''),
+    tokenHeader: readString('IM_TOKEN_HEADER', 'Authorization'),
+    tokenPrefix: readString('IM_TOKEN_PREFIX', 'Bearer '),
+    timeoutMs: readNumber('IM_USERINFO_TIMEOUT_MS', 5000),
+    cacheTtlMs: readNumber('IM_USER_CACHE_TTL_MS', 60_000),
+  },
   // 免密登录仅供开发与 M0 压测脚本使用，生产环境默认关闭
   devLoginEnabled: readBoolean('DEV_LOGIN_ENABLED', process.env.NODE_ENV !== 'production'),
   collabShards: parseShards(readString('COLLAB_SHARDS', 'ws://localhost:1234')),
