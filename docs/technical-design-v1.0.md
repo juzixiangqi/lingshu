@@ -179,7 +179,7 @@ TipTap/ProseMirror 的协同绑定是成熟的，但大文档的**初始 parse �
 
 ---
 
-## 九、M0 红线验证实测结果（2026-10-31）
+## 九、里程碑实测结果（2026-10-31）
 
 验证环境：本地 2 个协同分片（`ws://localhost:1234` / `ws://localhost:1235`）、PostgreSQL 16 + Redis、Hocuspocus 4.8.0、Univer 1.3.0、Edge headless（复用本机浏览器，不额外下载）。三项验证门全部通过。
 
@@ -363,9 +363,94 @@ M0 三项红线全部通过，M1 可按计划推进；M1 不得裁剪 200 人验
 
 已知边界：通知只做拉取式轮询，没有 WebSocket 推送；未接灵犀原生接口，只约定 webhook 契约。
 
-### 9.9 结论
+### 9.9 M3 故障演练（2026-10-31）
 
-M0 三项红线与 M1 四项性能门全部通过：单 sheet 200 人协同 40/40 op 无丢失、8 万字文档满负载打开 parse 35–36ms、真实 vsync 设备编辑区 0 慢帧、spectator 出站带宽亚线性增长。M1 范围内的账号密码登录、最小 ACL、自动保存状态、8 万字上限拦截均已在提交 `0521b19` 中落地并验证。SSO 按约定推迟到后续里程碑。
+**演练隔离**：演练使用独立的 PG(5433)、Redis(6380) 容器与独立 API(8789)、协同分片(1241) 进程，不触碰开发环境的 5432/6379/8787/1234，避免污染日常数据。复跑：`pnpm faults:m3`（`--gate redis|db|shard` 可单跑，`--keep` 保留容器便于排查）。
+
+**演练一：杀 Redis（ACL 事件通道）**
+
+| 检查项 | 结果 |
+|---|---|
+| 停机期间 `/api/health` | `redis=false / db=true / degraded=true`，整体仍 `ok=true` |
+| 停机期间文档列表、邀请成员 | 均正常（事件发布失败只记日志，变更已落库） |
+| 停机期间两端协同编辑 | 正常收敛，热路径不经过 Redis |
+| 恢复后 health | 回到 `redis=true` |
+| 恢复后移除成员 | 在线连接 ~200ms 内被断开 |
+
+**演练二：杀主库（PostgreSQL）**
+
+| 检查项 | 结果 |
+|---|---|
+| 停机期间 `/api/health` | `db=false / ok=false` |
+| 停机期间业务接口 | 返回 503 + JSON `{error}`，而不是 500 文本 |
+| 已建立的协同连接 | 继续编辑并同步，不受主库影响 |
+| 停机期间新连接 | 鉴权失败被拒绝，进不了文档 |
+| 恢复后 | health 与接口回到 200；断开连接触发文档卸载，停机期间的内容整份落盘；重新打开可读回 |
+
+**演练三：杀协同分片**
+
+| 检查项 | 结果 |
+|---|---|
+| 硬杀分片 | 客户端进入 `disconnected` 并自动重连，超时后重试 |
+| 分片宕机期间 | API 仍能提供文档与分片地址；新连接进不来 |
+| 分片恢复 | 客户端自动重连并重新同步（实测 < 1.5s） |
+| 客户端仍在线 | 未落盘增量由客户端补回服务端，无丢失 |
+| 分片宕机期间客户端也关闭 | 未落盘内容丢失，窗口上界为快照间隔 30s |
+
+**过程中修复的两个真实缺陷**：
+
+1. **API 依赖故障返回 500 文本**：新增 `onError`，把连接类错误码统一映射为 503 JSON；`health` 增加 `degraded` 字段区分“Redis 降级”与“主库故障”。
+2. **成员被移除后前端仍显示“已同步”**：Hocuspocus v4 服务端 `connection.close()` 是通过 CLOSE 消息关闭**文档连接**，WebSocket 本身不断开，Provider 不会进入 `disconnected`。两端编辑器现在监听 `close`（code 1000）并提示“已被移出本文档/表格，本地编辑不会再同步”，避免用户继续无效输入。
+
+**已知边界**：Windows 下无 POSIX 信号，分片演练按 `taskkill /F` 硬杀（最坏情况）；Linux 上 `SIGTERM` 会走 `server.destroy()` 落盘。ACL 事件在 Redis 订阅重连窗口内发布可能丢失，此时成员变更仍已落库，连接会在下次重连鉴权时失效（未新增补偿机制，按“低频控制消息”的可接受边界处理）。
+
+### 9.10 M3 私有化部署包（2026-10-31）
+
+**形态**：docker compose 离线包，5 个服务（web / api / collab / postgres / redis）。构建机联网产出镜像 tar + compose + 部署文档，目标机 `docker load` 后 `up -d --no-build --pull never` 安装，全程不需要外网。
+
+| 能力 | 实现 |
+|---|---|
+| 前端同源 | nginx 托管静态资源并把 `/api` 反代到 `api:8787`；构建时 `VITE_API_BASE_URL=""`，不把容器地址编译进产物 |
+| 生产依赖裁剪 | api/collab 多阶段构建，运行镜像只带 dist + 生产依赖；在干净的 base 阶段按 workspace 过滤安装，不会把 web 的 univer 或开发依赖带进镜像 |
+| 弱网构建 | 默认 npm 镜像源，`NPM_REGISTRY` 可覆盖；构建容器设 `CI=true` 允许 pnpm 自动重建 node_modules |
+| 幂等初始化 | api 启动先跑 `db-init`（`create table if not exists`），无需手工导入 SQL |
+| 端口可配 | `WEB_PORT`、`COLLAB_PUBLISH_PORT` 可改，api 的 `COLLAB_SHARDS` 自动跟随 |
+
+**冒烟验证**（本机 8080 前端 + 1236 分片，避开开发环境的 8787/1234）：
+
+| 检查项 | 结果 |
+|---|---|
+| `GET /api/health`（经 nginx 反代） | `ok=true / db=true / redis=true / degraded=false` |
+| 前端首页 | 200 |
+| 注册 → 登录 → 创建文档 → 列表 | 全部成功，数据落在部署栈独立 PG |
+| 协同分片 TCP 探活 | 连通 |
+
+镜像体积：api 267MB / collab 259MB / web 89.7MB（另有 postgres:16-alpine 与 redis:7-alpine 基础镜像）。
+
+已知边界：分片端口由浏览器直连，防火墙/安全组必须放行；多分片扩容时每个分片需单独声明对外端口，并同步 `COLLAB_SHARDS`。
+
+### 9.11 M3 集成测试与覆盖率（2026-10-31）
+
+**工具链**：vitest + `@vitest/coverage-v8`，根目录统一配置，测试文件串行执行；测试库与开发库隔离（`lingshu_test` + Redis db 9），启动时自动建库并应用 `schema.sql`。
+
+**可测性重构（不改产品行为）**：Hono 应用从 `index.ts` 拆到 `app.ts` 以支持直接注入请求；collab 导出 `governAwareness / acquireSlot / releaseSlot`；`startAclWatcher` 返回 subscriber 便于关闭。
+
+**结果**：18 个测试文件 / 143 个用例全部通过，`pnpm typecheck` 全绿。
+
+| 指标 | 阈值 | 实测 |
+|---|---|---|
+| statements | 80% | 94.37% |
+| branches | 75% | 89.57% |
+| functions | 80% | 88.97% |
+| lines | 80% | 97.03% |
+
+覆盖范围为 `packages/shared`、`apps/api`、`apps/collab` 全部源码 + `apps/web` 的纯逻辑模块 `lib/collab.ts`；React 页面不做单测，由 M1 验收脚本做端到端验证。
+
+未覆盖的主要分支：`aclWatcher` 订阅错误路径、`api/auth.ts` 的 token 解析异常分支、`redis.ts` 错误分支、collab `server.ts` 少量防护分支；MinIO 预签名因本地无服务使用 mock。
+
+### 9.12 结论
+
+M0 三项红线与 M1 四项性能门全部通过：单 sheet 200 人协同 40/40 op 无丢失、8 万字文档满负载打开 parse 35–36ms、真实 vsync 设备编辑区 0 慢帧、spectator 出站带宽亚线性增长。M1 范围内的账号密码登录、最小 ACL、自动保存状态、8 万字上限拦截均已在提交 `0521b19` 中落地并验证。M2 完成版本历史、xlsx 导入导出、@提及推灵犀（§9.6–§9.8）；M3 完成故障演练 25/25（§9.9）、私有化离线部署包与冒烟验证（§9.10）、全仓集成测试与覆盖率达标（§9.11）。SSO 按约定推迟到后续里程碑。
 
 ---
 

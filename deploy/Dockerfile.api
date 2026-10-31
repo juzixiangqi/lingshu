@@ -1,0 +1,39 @@
+# 灵枢 API 镜像。构建上下文为仓库根目录。
+FROM node:22-alpine AS base
+# 默认使用国内镜像源；离线环境可用 --build-arg NPM_REGISTRY=... 覆盖
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
+# 构建容器无 TTY，CI=true 允许 pnpm 自动清理并重建 node_modules
+ENV CI=true
+RUN corepack enable && corepack prepare pnpm@10.23.0 --activate
+WORKDIR /repo
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY packages/shared/package.json packages/shared/package.json
+COPY apps/api/package.json apps/api/package.json
+COPY apps/collab/package.json apps/collab/package.json
+COPY apps/web/package.json apps/web/package.json
+
+FROM base AS build
+RUN pnpm install --frozen-lockfile
+COPY tsconfig.base.json ./
+COPY packages/shared packages/shared
+COPY apps/api apps/api
+RUN pnpm --filter @lingshu/shared build && pnpm --filter @lingshu/api build
+
+# 只装 API 及其 workspace 依赖的生产依赖，避免把 web 的 univer 等大包带进运行镜像。
+# 必须在干净的 base 阶段安装：在已装全量依赖的目录里 --prod 不会清掉 web/开发依赖。
+FROM base AS runtime-deps
+RUN pnpm install --frozen-lockfile --prod --filter "@lingshu/api..."
+
+FROM node:22-alpine
+WORKDIR /repo
+COPY --from=runtime-deps /repo/node_modules ./node_modules
+COPY --from=runtime-deps /repo/apps/api/node_modules ./apps/api/node_modules
+COPY --from=runtime-deps /repo/packages/shared/package.json ./packages/shared/package.json
+COPY --from=build /repo/packages/shared/dist ./packages/shared/dist
+COPY --from=build /repo/apps/api/package.json ./apps/api/package.json
+COPY --from=build /repo/apps/api/dist ./apps/api/dist
+COPY --from=build /repo/apps/api/db ./apps/api/db
+ENV NODE_ENV=production
+WORKDIR /repo/apps/api
+CMD ["node", "dist/index.js"]

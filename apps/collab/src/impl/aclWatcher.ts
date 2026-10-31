@@ -8,7 +8,7 @@ import { syncDocumentMembership } from './liveConnections.js';
  * 该通道只承载低频 ACL 控制消息，不进入 update/awareness 广播热路径；
  * Redis 不可用时订阅会持续重试，成员变更仍然落库，重连时重新鉴权即可生效。
  */
-export function startAclWatcher(): void {
+export function startAclWatcher(): Redis {
   const subscriber = new Redis(env.redisUrl, {
     lazyConnect: true,
     maxRetriesPerRequest: 1,
@@ -43,4 +43,6 @@ export function startAclWatcher(): void {
   void subscriber.connect().catch((error: unknown) => {
     console.warn('[collab] ACL 订阅初始连接失败，将后台重试', error);
   });
+
+  return subscriber;
 }

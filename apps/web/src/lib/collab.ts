@@ -29,6 +29,23 @@ export function destroySession(session: CollabSession): void {
   session.doc.destroy();
 }
 
+/**
+ * Hocuspocus 连接状态的中文展示。
+ * 分片宕机期间编辑器仍可离线输入，Provider 会自动重连并把本地增量补回服务端。
+ */
+export function collabStatusLabel(status: string): string {
+  switch (status) {
+    case 'connecting':
+      return '连接中';
+    case 'connected':
+      return '已连接';
+    case 'disconnected':
+      return '协同服务断开，正在重连…';
+    default:
+      return status;
+  }
+}
+
 /** 历史版本快照以 base64 传输，这里转回 Yjs 二进制。 */
 export function decodeSnapshot(base64: string): Uint8Array {
   const binary = atob(base64);

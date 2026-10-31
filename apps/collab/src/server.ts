@@ -54,7 +54,7 @@ function changedBeyondEphemeral(
  *    但 y-protocols 要求状态每 30s 至少更新一次，所以每 LIMITS.awarenessRepublishMs
  *    放行一次完整状态，避免在线成员被服务端按超时移除。
  */
-function governAwareness(
+export function governAwareness(
   documentName: string,
   states: Map<number, Record<string, any>>,
   current: Map<number, Record<string, any>>,
@@ -106,7 +106,7 @@ function governAwareness(
   }
 }
 
-function acquireSlot(documentName: string, socketId: string): void {
+export function acquireSlot(documentName: string, socketId: string): void {
   const sockets = docSockets.get(documentName) ?? new Set<string>();
   if (sockets.size >= env.maxDocConnections) {
     throw new Error(`文档连接数已达上限（${env.maxDocConnections}）`);
@@ -115,7 +115,7 @@ function acquireSlot(documentName: string, socketId: string): void {
   docSockets.set(documentName, sockets);
 }
 
-function releaseSlot(documentName: string, socketId: string): void {
+export function releaseSlot(documentName: string, socketId: string): void {
   const sockets = docSockets.get(documentName);
   if (!sockets) return;
   sockets.delete(socketId);

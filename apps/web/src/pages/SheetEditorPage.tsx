@@ -23,6 +23,7 @@ import { LIMITS, workbookDocumentName, type DocDetail, type DocVersionSnapshot }
 import { getCurrentUser, getDoc, getToken } from '../lib/api';
 import {
   RESTORE_STATELESS,
+  collabStatusLabel,
   connectDocument,
   decodeSnapshot,
   destroySession,
@@ -147,7 +148,15 @@ export function SheetEditorPage() {
         // bridge 的 transport 是 workbook 级：一份 Y.Doc 承载所有 sheet 的 op 流
         const workbookName = workbookDocumentName(doc.id);
         session = connectDocument(doc, workbookName);
-        session.provider.on('status', (event: { status: string }) => setStatus(event.status));
+        session.provider.on('status', (event: { status: string }) =>
+          setStatus(collabStatusLabel(event.status)),
+        );
+        // 同文档编辑器：成员被移除时服务端只发 CLOSE 消息，需显式提示并停止误报“已同步”
+        session.provider.on('close', ({ event }: { event?: { code?: number } }) => {
+          if (event?.code !== 1000) return;
+          setStatus('已被移出本表格');
+          setError('你已不在该表格的协作成员中，本地编辑不会再同步');
+        });
         session.provider.on('synced', () => setStatus('已同步'));
         // 其他成员恢复版本后，本端无法增量应用被删除的 op，直接重载重建工作簿
         session.provider.on('stateless', ({ payload }: { payload: string }) => {

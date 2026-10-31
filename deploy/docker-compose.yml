@@ -1,0 +1,111 @@
+name: lingshu-deploy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lingshu
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lingshu}
+      POSTGRES_DB: lingshu
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lingshu -d lingshu"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    image: lingshu-api:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    environment:
+      API_PORT: "8787"
+      DATABASE_URL: postgres://lingshu:${POSTGRES_PASSWORD:-lingshu}@postgres:5432/lingshu
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?请在 deploy/.env 中设置 JWT_SECRET}
+      COLLAB_SHARDS: ws://${PUBLIC_HOST:-localhost}:${COLLAB_PUBLISH_PORT:-1234}
+      WEB_BASE_URL: http://${PUBLIC_HOST:-localhost}:${WEB_PORT:-8080}
+      DEV_LOGIN_ENABLED: "false"
+      LINGXI_WEBHOOK_URL: ${LINGXI_WEBHOOK_URL:-}
+    # 每次启动先幂等执行建表脚本，再拉起 API
+    command: ["sh", "-c", "node dist/scripts/db-init.js && node dist/index.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8787/api/health').then((r)=>r.json()).then((j)=>process.exit(j.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    restart: unless-stopped
+
+  collab:
+    image: lingshu-collab:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.collab
+    environment:
+      SHARD_ID: shard-a
+      COLLAB_PORT: "1234"
+      DATABASE_URL: postgres://lingshu:${POSTGRES_PASSWORD:-lingshu}@postgres:5432/lingshu
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?请在 deploy/.env 中设置 JWT_SECRET}
+      COLLAB_MAX_DOC_CONNECTIONS: "200"
+    # 浏览器直连分片，端口必须对客户端可达
+    ports:
+      - "${COLLAB_PUBLISH_PORT:-1234}:1234"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # 分片是 WebSocket 服务，用 TCP 探活即可
+      test:
+        - CMD
+        - node
+        - -e
+        - "const s=require('net').connect(1234,'127.0.0.1');s.on('connect',()=>{s.destroy();process.exit(0)});s.on('error',()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+
+  web:
+    image: lingshu-web:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+      args:
+        VITE_API_BASE_URL: ""
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:

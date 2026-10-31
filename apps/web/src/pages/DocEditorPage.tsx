@@ -10,7 +10,13 @@ import Mention from '@tiptap/extension-mention';
 import * as Y from 'yjs';
 import { LIMITS, type DocDetail, type DocMember, type DocRole, type DocVersionSnapshot } from '@lingshu/shared';
 import { getCurrentUser, getDoc, getToken, listMembers, notifyMention } from '../lib/api';
-import { connectDocument, decodeSnapshot, destroySession, type CollabSession } from '../lib/collab';
+import {
+  collabStatusLabel,
+  connectDocument,
+  decodeSnapshot,
+  destroySession,
+  type CollabSession,
+} from '../lib/collab';
 import { createMentionExtension } from '../lib/mention';
 import { useSaveStatus } from '../lib/saveStatus';
 import { MemberPanel } from '../components/MemberPanel';
@@ -294,12 +300,22 @@ export function DocEditorPage() {
 
         created = connectDocument(doc, documentName);
         created.provider.on('status', (event: { status: string }) => {
-          setStatus(event.status);
+          setStatus(collabStatusLabel(event.status));
           // M1 验收：以 WebSocket 连接建立为起点，统计“同步 + 解析正文”的客户端耗时
           if (import.meta.env.DEV && event.status === 'connected') {
             const scope = window as unknown as Record<string, unknown>;
             if (!scope.__lingshuDocConnectedAt) scope.__lingshuDocConnectedAt = performance.now();
           }
+        });
+        /**
+         * 服务端用 CLOSE 消息关闭“文档连接”时（成员被移除/降权），WebSocket 本身仍然开着，
+         * 状态事件不会变成 disconnected。不显式处理的话界面会一直显示“已同步”，
+         * 而实际编辑已经不再广播。
+         */
+        created.provider.on('close', ({ event }: { event?: { code?: number } }) => {
+          if (event?.code !== 1000) return;
+          setStatus('已被移出本文档');
+          setError('你已不在该文档的协作成员中，本地编辑不会再同步');
         });
         created.provider.on('synced', () => {
           setStatus('已同步');
