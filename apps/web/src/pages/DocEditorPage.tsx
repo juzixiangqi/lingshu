@@ -6,12 +6,15 @@ import { Plugin } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCaret from '@tiptap/extension-collaboration-caret';
+import Mention from '@tiptap/extension-mention';
 import * as Y from 'yjs';
-import { LIMITS, type DocDetail, type DocRole, type DocVersionSnapshot } from '@lingshu/shared';
-import { getCurrentUser, getDoc, getToken } from '../lib/api';
+import { LIMITS, type DocDetail, type DocMember, type DocRole, type DocVersionSnapshot } from '@lingshu/shared';
+import { getCurrentUser, getDoc, getToken, listMembers, notifyMention } from '../lib/api';
 import { connectDocument, decodeSnapshot, destroySession, type CollabSession } from '../lib/collab';
+import { createMentionExtension } from '../lib/mention';
 import { useSaveStatus } from '../lib/saveStatus';
 import { MemberPanel } from '../components/MemberPanel';
+import { NotificationBell } from '../components/NotificationBell';
 import { VersionPanel } from '../components/VersionPanel';
 
 const ROLE_LABEL: Record<DocRole, string> = {
@@ -61,6 +64,34 @@ function CollabEditor({ detail, session, registerRestore }: EditorProps) {
   const user = getCurrentUser();
   const editable = detail.role !== 'spectator';
 
+  // 成员列表用 ref 保存：@提及 候选取自这里，成员刷新时不必重建编辑器
+  const membersRef = useRef<DocMember[]>([]);
+  useEffect(() => {
+    void listMembers(detail.id)
+      .then((members) => {
+        // 不给自己弹出候选：服务端也会过滤，避免误发通知
+        membersRef.current = members.filter((member) => member.userId !== user?.id);
+      })
+      .catch(() => {
+        membersRef.current = [];
+      });
+  }, [detail.id, user?.id]);
+
+  /**
+   * 所有角色都要注册 mention 节点：只读成员虽然不能输入，但正文里已有的提及必须能解析，
+   * 否则旁观端打开文档会丢内容。候选弹窗只对可写角色挂。
+   */
+  const mention = editable
+    ? createMentionExtension({
+        getMembers: () => membersRef.current,
+        onMention: (member, excerpt) => {
+          void notifyMention(detail.id, [member.userId], excerpt).catch(() => {
+            // 通知失败不影响编辑本身，站内通知由其他端重试
+          });
+        },
+      })
+    : Mention.configure({ HTMLAttributes: { class: 'doc-mention' } });
+
   const editor = useEditor(
     {
       editable,
@@ -69,6 +100,7 @@ function CollabEditor({ detail, session, registerRestore }: EditorProps) {
         StarterKit.configure({ undoRedo: false }),
         CharLimit,
         Collaboration.configure({ document: session.doc }),
+        mention,
         ...(editable
           ? [
               CollaborationCaret.configure({
@@ -82,7 +114,7 @@ function CollabEditor({ detail, session, registerRestore }: EditorProps) {
         attributes: { class: 'editor-surface' },
       },
     },
-    [session, editable, user?.displayName],
+    [session, editable, user?.displayName, detail.id],
   );
 
   const [chars, setChars] = useState(0);
@@ -119,6 +151,8 @@ function CollabEditor({ detail, session, registerRestore }: EditorProps) {
         element: document.createElement('div'),
         extensions: [
           StarterKit.configure({ undoRedo: false }),
+          // 历史版本里可能含 @提及 节点，临时编辑器也要注册，否则转换时会丢节点
+          Mention.configure({ HTMLAttributes: { class: 'doc-mention' } }),
           Collaboration.configure({ document: restored }),
         ],
       });
@@ -301,6 +335,7 @@ export function DocEditorPage() {
           </p>
         </div>
         <div className="actions">
+          <NotificationBell />
           {detail ? <VersionPanel docId={detail.id} role={detail.role} onRestore={restore} /> : null}
           {detail ? <MemberPanel docId={detail.id} role={detail.role} /> : null}
           <button onClick={() => navigate('/')}>返回列表</button>

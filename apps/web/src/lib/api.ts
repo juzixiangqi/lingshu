@@ -1,4 +1,5 @@
 import type {
+  AppNotification,
   DocDetail,
   DocKind,
   DocMember,
@@ -152,4 +153,35 @@ export async function fetchVersionSnapshot(
     { method: 'POST' },
   );
   return data.version;
+}
+
+/** 站内通知：兜底展示 @提及，面板轮询该接口拿未读数。 */
+export async function listNotifications(): Promise<{
+  notifications: AppNotification[];
+  unread: number;
+}> {
+  return request<{ notifications: AppNotification[]; unread: number }>('/api/notifications');
+}
+
+export async function markNotificationsRead(ids?: string[]): Promise<number> {
+  const data = await request<{ unread: number }>('/api/notifications/read', {
+    method: 'POST',
+    body: JSON.stringify(ids?.length ? { ids } : {}),
+  });
+  return data.unread;
+}
+
+/**
+ * 上报 @提及。通知落库与 webhook 推送都在服务端完成，
+ * 客户端只负责把被提及的成员与上下文摘要带上。
+ */
+export async function notifyMention(
+  docId: string,
+  userIds: string[],
+  excerpt: string,
+): Promise<{ delivered: number; webhook: string }> {
+  return request<{ delivered: number; webhook: string }>(`/api/docs/${docId}/mentions`, {
+    method: 'POST',
+    body: JSON.stringify({ userIds, excerpt }),
+  });
 }

@@ -14,6 +14,7 @@ import { requireAuth } from '../auth.js';
 import { query, withTransaction } from '../db.js';
 import { env } from '../env.js';
 import { publishAclChange } from '../redis.js';
+import { sendMentionWebhook } from '../webhook.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -358,4 +359,83 @@ docsRoutes.post('/:id/versions/:versionId/restore', async (c) => {
     base64: row.snapshot.base64,
   };
   return c.json({ version });
+});
+
+interface MentionBody {
+  userIds?: string[];
+  excerpt?: string;
+}
+
+interface MentionTargetRow {
+  user_id: string;
+  email: string;
+  display_name: string;
+}
+
+interface DocTitleRow {
+  title: string;
+  kind: DocKind;
+}
+
+/** 单次提及最多通知的人数，防止误操作把整篇成员列表刷一遍。 */
+const MENTION_TARGET_LIMIT = 20;
+const MENTION_EXCERPT_LIMIT = 200;
+
+/**
+ * @提及：写站内通知（兜底）+ 推送外部 webhook（灵犀）。
+ * 只允许可写角色，且只能提及当前文档的成员；通知先落库，webhook 失败不影响提及成功。
+ */
+docsRoutes.post('/:id/mentions', async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id');
+  if (!UUID_RE.test(id)) return c.json({ error: 'invalid id' }, 400);
+
+  const access = await docAccess(id, user.id);
+  if (!access) return c.json({ error: 'not found' }, 404);
+  if (access.role === 'spectator') return c.json({ error: '只读成员不能提及他人' }, 403);
+
+  const body = (await c.req.json().catch(() => ({}))) as MentionBody;
+  const userIds = Array.from(
+    new Set((body.userIds ?? []).filter((userId) => UUID_RE.test(userId) && userId !== user.id)),
+  ).slice(0, MENTION_TARGET_LIMIT);
+  if (!userIds.length) return c.json({ delivered: 0, webhook: 'skipped' });
+
+  const excerpt = (body.excerpt ?? '').replace(/\s+/g, ' ').trim().slice(0, MENTION_EXCERPT_LIMIT);
+
+  // 只允许提及同文档成员，避免借提及接口给任意用户发通知
+  const targets = await query<MentionTargetRow>(
+    `select m.user_id, u.email, u.display_name
+       from doc_members m join users u on u.id = m.user_id
+      where m.document_id = $1 and m.user_id = any($2::uuid[])`,
+    [id, userIds],
+  );
+  if (!targets.length) return c.json({ delivered: 0, webhook: 'skipped' });
+
+  await query(
+    `insert into notifications (user_id, document_id, kind, actor_id, excerpt)
+     select unnest($1::uuid[]), $2, 'mention', $3, $4`,
+    [targets.map((target) => target.user_id), id, user.id, excerpt],
+  );
+
+  const docs = await query<DocTitleRow>(`select title, kind from documents where id = $1`, [id]);
+  const doc = docs[0];
+  const webhook = doc
+    ? await sendMentionWebhook({
+        type: 'mention',
+        documentId: id,
+        documentTitle: doc.title,
+        documentKind: doc.kind,
+        url: `${env.webBaseUrl}${doc.kind === 'sheet' ? '/sheet' : '/doc'}/${id}`,
+        actor: { id: user.id, displayName: user.displayName },
+        recipients: targets.map((target) => ({
+          id: target.user_id,
+          displayName: target.display_name,
+          email: target.email,
+        })),
+        excerpt,
+        occurredAt: new Date().toISOString(),
+      })
+    : 'skipped';
+
+  return c.json({ delivered: targets.length, webhook });
 });

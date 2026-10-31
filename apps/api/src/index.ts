@@ -6,6 +6,7 @@ import { pingDatabase } from './db.js';
 import { pingRedis } from './redis.js';
 import { authRoutes } from './routes/auth.js';
 import { docsRoutes } from './routes/docs.js';
+import { notificationsRoutes } from './routes/notifications.js';
 
 const app = new Hono();
 
@@ -27,6 +28,7 @@ app.get('/api/health', async (c) => {
 
 app.route('/api/auth', authRoutes);
 app.route('/api/docs', docsRoutes);
+app.route('/api/notifications', notificationsRoutes);
 
 serve({ fetch: app.fetch, port: env.port }, (info) => {
   console.log(`[api] listening on http://localhost:${info.port}`);

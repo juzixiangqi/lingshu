@@ -314,3 +314,85 @@ button.primary:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* @提及：正文里的标记与候选弹窗 */
+.doc-mention {
+  color: var(--primary);
+  background: var(--surface);
+  border-radius: 4px;
+  padding: 0 2px;
+  font-weight: 500;
+}
+
+.mention-popup {
+  position: fixed;
+  z-index: 30;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(29 33 41 / 18%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mention-item {
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mention-item.active {
+  background: var(--surface-strong, #eef2f9);
+}
+
+.mention-empty {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* 站内通知条目 */
+.notification-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.notification-item.unread {
+  border-color: var(--primary);
+}
+
+.notification-link {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notification-excerpt {
+  font-size: 13px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}

@@ -65,3 +65,18 @@ create table if not exists doc_op_log (
 );
 
 create index if not exists doc_op_log_name_time_idx on doc_op_log (document_name, created_at desc);
+
+-- 站内通知：@提及 的兜底通道。webhook 推送失败或未配置时，用户仍能在顶栏看到未读提醒。
+create table if not exists notifications (
+  id bigserial primary key,
+  user_id uuid not null references users (id) on delete cascade,
+  document_id uuid not null references documents (id) on delete cascade,
+  kind text not null check (kind in ('mention')),
+  actor_id uuid references users (id) on delete set null,
+  excerpt text not null default '',
+  read_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists notifications_user_time_idx
+  on notifications (user_id, created_at desc);

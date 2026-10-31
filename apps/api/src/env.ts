@@ -35,6 +35,10 @@ export const env = {
   // 免密登录仅供开发与 M0 压测脚本使用，生产环境默认关闭
   devLoginEnabled: readBoolean('DEV_LOGIN_ENABLED', process.env.NODE_ENV !== 'production'),
   collabShards: parseShards(readString('COLLAB_SHARDS', 'ws://localhost:1234')),
+  /** 灵犀（或任意兼容接收方）的 webhook 地址；留空则只发站内通知 */
+  lingxiWebhookUrl: readString('LINGXI_WEBHOOK_URL', ''),
+  /** webhook 里的文档链接前缀，需与前端部署地址一致 */
+  webBaseUrl: readString('WEB_BASE_URL', 'http://localhost:5173'),
   s3: {
     endPoint: readString('S3_ENDPOINT', 'localhost'),
     port: readNumber('S3_PORT', 9000),

@@ -72,3 +72,19 @@ export interface CollabContext {
   role: DocRole;
   documentId: string;
 }
+
+/** 站内通知来源。一期只有 @提及 一种。 */
+export type NotificationKind = 'mention';
+
+/** 站内通知条目，兜底展示在顶栏铃铛面板里。 */
+export interface AppNotification {
+  id: string;
+  kind: NotificationKind;
+  documentId: string;
+  documentTitle: string;
+  documentKind: DocKind;
+  actorName: string;
+  excerpt: string;
+  readAt: string | null;
+  createdAt: string;
+}

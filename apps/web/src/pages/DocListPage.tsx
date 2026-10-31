@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { DocDetail, DocKind } from '@lingshu/shared';
 import { createDoc, getCurrentUser, getToken, listDocs, logout } from '../lib/api';
+import { NotificationBell } from '../components/NotificationBell';
 
 const KIND_LABEL: Record<DocKind, string> = {
   doc: '笺 · 文档',
@@ -69,6 +70,7 @@ export function DocListPage() {
           </p>
         </div>
         <div className="actions">
+          <NotificationBell />
           <button onClick={handleLogout}>退出登录</button>
           <button className="primary" onClick={() => void handleCreate('doc')}>
             新建文档
