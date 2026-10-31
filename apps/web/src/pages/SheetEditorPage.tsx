@@ -16,10 +16,11 @@ import {
   createSheetsCollabBridgeConfig,
   getCollabBridgeService,
   getCollabBridgeServices,
+  type CollabOp,
 } from '@8space-lab/univer-collab-bridge';
 import { LIMITS, workbookDocumentName, type DocDetail } from '@lingshu/shared';
 import { getCurrentUser, getDoc } from '../lib/api';
-import { connectDocument, destroySession } from '../lib/collab';
+import { connectDocument, destroySession, type CollabSession } from '../lib/collab';
 
 /**
  * 三个 sheet 用于验证跨 sheet 协同：bridge 的 op 带 subUnitId，
@@ -49,6 +50,31 @@ function buildWorkbookSnapshot(detail: DocDetail): Partial<IWorkbookData> {
       ]),
     ),
   } as unknown as Partial<IWorkbookData>;
+}
+
+/**
+ * bridge 的 onOp 只订阅注册之后的增量，重开表格时历史 op 不会自动回放，
+ * 界面会退回空工作簿。这里等首次同步完成、桥服务注册后，再按顺序把 opLog
+ * 重新交给 Univer；applyRemoteOp 会按 op.id 去重，因此同步期间已经自动应用
+ * 的 op 不会被重复执行。
+ */
+async function restoreSheetHistory(session: CollabSession, clientId: string): Promise<number> {
+  const started = Date.now();
+  while (!session.provider.synced) {
+    if (Date.now() - started > 30_000) throw new Error('等待协同同步超时');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  let service = getCollabBridgeService(clientId);
+  while (!service) {
+    if (Date.now() - started > 30_000) throw new Error('协同桥未就绪，无法恢复历史内容');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    service = getCollabBridgeService(clientId);
+  }
+
+  const ops = session.doc.getArray<CollabOp>('opLog').toArray();
+  for (const op of ops) service.applyRemoteOp(op);
+  return ops.length;
 }
 
 export function SheetEditorPage() {
@@ -97,6 +123,11 @@ export function SheetEditorPage() {
           unitId: doc.id,
           transport: new YjsCollabTransport(session.doc),
         });
+
+        // 重开表格：回放历史 op，否则界面只显示空工作簿
+        const replayedOps = await restoreSheetHistory(session, clientId);
+        if (disposed) return;
+        if (replayedOps > 0) setStatus(`已同步 · 恢复 ${replayedOps} 条历史操作`);
 
         // M0 验证脚本通过该句柄直接驱动 Univer 命令，等价于用户在单元格里输入
         if (import.meta.env.DEV) {
