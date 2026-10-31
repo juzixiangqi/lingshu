@@ -207,8 +207,21 @@ export function DocEditorPage() {
         if (!documentName) throw new Error('文档缺少协同目标');
 
         created = connectDocument(doc, documentName);
-        created.provider.on('status', (event: { status: string }) => setStatus(event.status));
-        created.provider.on('synced', () => setStatus('已同步'));
+        created.provider.on('status', (event: { status: string }) => {
+          setStatus(event.status);
+          // M1 验收：以 WebSocket 连接建立为起点，统计“同步 + 解析正文”的客户端耗时
+          if (import.meta.env.DEV && event.status === 'connected') {
+            const scope = window as unknown as Record<string, unknown>;
+            if (!scope.__lingshuDocConnectedAt) scope.__lingshuDocConnectedAt = performance.now();
+          }
+        });
+        created.provider.on('synced', () => {
+          setStatus('已同步');
+          if (import.meta.env.DEV) {
+            const scope = window as unknown as Record<string, unknown>;
+            if (!scope.__lingshuDocSyncAt) scope.__lingshuDocSyncAt = performance.now();
+          }
+        });
         if (!cancelled) setSession(created);
       } catch (err) {
         if (cancelled) return;

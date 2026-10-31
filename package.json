@@ -18,7 +18,8 @@
     "loadtest:m0": "node apps/web/scripts/m0-loadtest.mjs",
     "fps:m0": "node apps/web/scripts/m0-fps.mjs",
     "bridge:m0": "node apps/web/scripts/m0-bridge.mjs",
-    "routing:m0": "node apps/web/scripts/m0-routing.mjs"
+    "routing:m0": "node apps/web/scripts/m0-routing.mjs",
+    "accept:m1": "node apps/web/scripts/m1-acceptance.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.18.0",
