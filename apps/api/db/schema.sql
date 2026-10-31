@@ -10,6 +10,9 @@ create table if not exists users (
   created_at timestamptz not null default now()
 );
 
+-- 账号密码登录。scrypt$<salt>$<hash>；历史 dev 用户为空，需注册后才可密码登录
+alter table users add column if not exists password_hash text;
+
 create table if not exists documents (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references users (id) on delete cascade,

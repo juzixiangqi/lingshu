@@ -32,6 +32,8 @@ export const env = {
   databaseUrl: readString('DATABASE_URL', 'postgres://lingshu:lingshu@localhost:5432/lingshu'),
   redisUrl: readString('REDIS_URL', 'redis://localhost:6379'),
   jwtSecret: readString('JWT_SECRET', 'dev-only-change-me'),
+  // 免密登录仅供开发与 M0 压测脚本使用，生产环境默认关闭
+  devLoginEnabled: readBoolean('DEV_LOGIN_ENABLED', process.env.NODE_ENV !== 'production'),
   collabShards: parseShards(readString('COLLAB_SHARDS', 'ws://localhost:1234')),
   s3: {
     endPoint: readString('S3_ENDPOINT', 'localhost'),

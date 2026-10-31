@@ -195,10 +195,11 @@ async function main() {
     docId = created.doc.id;
   }
 
+  // 成员只能由 owner 按邮箱邀请，不再允许通过文档链接自助加入
   await api(`/api/docs/${docId}/members`, {
-    token: spectatorUser.token,
+    token: editorUser.token,
     method: 'POST',
-    body: { role: 'spectator' },
+    body: { email: spectatorUser.user.email, role: 'spectator' },
   });
 
   const detail = await api(`/api/docs/${docId}`, { token: editorUser.token });

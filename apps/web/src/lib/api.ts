@@ -1,4 +1,4 @@
-import type { DocDetail, DocKind, DocRole, SessionUser } from '@lingshu/shared';
+import type { DocDetail, DocKind, DocMember, DocRole, SessionUser, StorageState } from '@lingshu/shared';
 
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8787';
 const TOKEN_KEY = 'lingshu.token';
@@ -8,7 +8,7 @@ interface ErrorBody {
   error?: string;
 }
 
-interface DevLoginResponse {
+interface AuthResponse {
   token: string;
   user: SessionUser;
 }
@@ -32,7 +32,7 @@ function setSession(token: string, user: SessionUser): void {
   localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
-function clearSession(): void {
+export function logout(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 }
@@ -49,8 +49,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
 
   if (response.status === 401) {
-    clearSession();
-    throw new Error('登录已失效，请刷新页面');
+    logout();
+    throw new Error('登录已失效，请重新登录');
   }
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as ErrorBody;
@@ -59,27 +59,26 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await response.json()) as T;
 }
 
-/** 开发期免密登录；M1 换成企业 SSO 后由 SSO 回调写入同一份 token。 */
-export async function ensureSession(): Promise<SessionUser> {
-  const cached = getCurrentUser();
-  if (getToken() && cached) return cached;
-
-  const suffix = Math.random().toString(36).slice(2, 8);
-  const response = await fetch(`${BASE_URL}/api/auth/dev-login`, {
+async function submitAuth(path: 'login' | 'register', body: Record<string, string>): Promise<SessionUser> {
+  const response = await fetch(`${BASE_URL}/api/auth/${path}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ displayName: `访客 ${suffix}` }),
+    body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error('开发登录失败，请确认 API 服务已启动');
-  const data = (await response.json()) as DevLoginResponse;
+  const data = (await response.json().catch(() => ({}))) as Partial<AuthResponse> & ErrorBody;
+  if (!response.ok || !data.token || !data.user) {
+    throw new Error(data.error ?? `请求失败（${response.status}）`);
+  }
   setSession(data.token, data.user);
   return data.user;
 }
 
-/** 换一个身份，用于在同一台机器上验证多用户协同。 */
-export async function switchIdentity(): Promise<SessionUser> {
-  clearSession();
-  return ensureSession();
+export function login(email: string, password: string): Promise<SessionUser> {
+  return submitAuth('login', { email, password });
+}
+
+export function register(email: string, password: string, displayName: string): Promise<SessionUser> {
+  return submitAuth('register', { email, password, displayName });
 }
 
 export async function listDocs(): Promise<DocDetail[]> {
@@ -100,10 +99,31 @@ export async function createDoc(kind: DocKind): Promise<DocDetail> {
   return data.doc;
 }
 
-export async function setMyRole(id: string, role: Exclude<DocRole, 'owner'>): Promise<DocDetail> {
-  const data = await request<{ doc: DocDetail }>(`/api/docs/${id}/members`, {
+export async function listMembers(id: string): Promise<DocMember[]> {
+  const data = await request<{ members: DocMember[] }>(`/api/docs/${id}/members`);
+  return data.members;
+}
+
+export async function inviteMember(
+  id: string,
+  email: string,
+  role: Exclude<DocRole, 'owner'>,
+): Promise<DocMember[]> {
+  const data = await request<{ members: DocMember[] }>(`/api/docs/${id}/members`, {
     method: 'POST',
-    body: JSON.stringify({ role }),
+    body: JSON.stringify({ email, role }),
   });
-  return data.doc;
+  return data.members;
+}
+
+export async function removeMember(id: string, userId: string): Promise<DocMember[]> {
+  const data = await request<{ members: DocMember[] }>(`/api/docs/${id}/members/${userId}`, {
+    method: 'DELETE',
+  });
+  return data.members;
+}
+
+export async function getStorageState(id: string): Promise<StorageState> {
+  const data = await request<{ storage: StorageState }>(`/api/docs/${id}/storage`);
+  return data.storage;
 }

@@ -23,6 +23,7 @@ export const env = {
   shardId: argValue('shard') ?? process.env.SHARD_ID ?? 'shard-a',
   port: Number(argValue('port') ?? process.env.COLLAB_PORT ?? 1234),
   databaseUrl: process.env.DATABASE_URL ?? 'postgres://lingshu:lingshu@localhost:5432/lingshu',
+  redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
   jwtSecret: process.env.JWT_SECRET ?? 'dev-only-change-me',
   maxDocConnections: readNumber('COLLAB_MAX_DOC_CONNECTIONS', 200),
   awarenessThrottleMs: readNumber('AWARENESS_THROTTLE_MS', 40),

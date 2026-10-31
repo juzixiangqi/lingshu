@@ -19,8 +19,10 @@ import {
   type CollabOp,
 } from '@8space-lab/univer-collab-bridge';
 import { LIMITS, workbookDocumentName, type DocDetail } from '@lingshu/shared';
-import { getCurrentUser, getDoc } from '../lib/api';
+import { getCurrentUser, getDoc, getToken } from '../lib/api';
 import { connectDocument, destroySession, type CollabSession } from '../lib/collab';
+import { useSaveStatus } from '../lib/saveStatus';
+import { MemberPanel } from '../components/MemberPanel';
 
 /**
  * 三个 sheet 用于验证跨 sheet 协同：bridge 的 op 带 subUnitId，
@@ -82,8 +84,10 @@ export function SheetEditorPage() {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const [detail, setDetail] = useState<DocDetail | null>(null);
+  const [session, setSession] = useState<CollabSession | null>(null);
   const [status, setStatus] = useState('连接中');
   const [error, setError] = useState('');
+  const save = useSaveStatus(id, session);
 
   useEffect(() => {
     let disposed = false;
@@ -101,6 +105,7 @@ export function SheetEditorPage() {
         session = connectDocument(doc, workbookName);
         session.provider.on('status', (event: { status: string }) => setStatus(event.status));
         session.provider.on('synced', () => setStatus('已同步'));
+        if (!disposed) setSession(session);
 
         const me = getCurrentUser();
         const clientId = String(session.doc.clientID);
@@ -140,7 +145,12 @@ export function SheetEditorPage() {
           };
         }
       } catch (err) {
-        if (!disposed) setError(err instanceof Error ? err.message : '打开表格失败');
+        if (disposed) return;
+        if (!getToken()) {
+          navigate('/login', { replace: true });
+          return;
+        }
+        setError(err instanceof Error ? err.message : '打开表格失败');
       }
     })();
 
@@ -148,6 +158,7 @@ export function SheetEditorPage() {
       disposed = true;
       disposeUniver?.();
       if (session) destroySession(session);
+      setSession(null);
     };
   }, [id]);
 
@@ -157,10 +168,13 @@ export function SheetEditorPage() {
         <div>
           <h1>{detail?.title ?? '表格'}</h1>
           <p className="muted">
-            {detail ? `单文档上限 ${LIMITS.maxConnectionsPerDoc} 人 · ${status}` : '加载中…'}
+            {detail
+              ? `单文档上限 ${LIMITS.maxConnectionsPerDoc} 人 · ${status} · ${save.text}`
+              : '加载中…'}
           </p>
         </div>
         <div className="actions">
+          {detail ? <MemberPanel docId={detail.id} role={detail.role} /> : null}
           <button onClick={() => navigate('/')}>返回列表</button>
         </div>
       </header>

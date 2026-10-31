@@ -1,18 +1,46 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { EditorContent, useEditor } from '@tiptap/react';
+import { Extension } from '@tiptap/core';
+import { Plugin } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCaret from '@tiptap/extension-collaboration-caret';
 import { LIMITS, type DocDetail, type DocRole } from '@lingshu/shared';
-import { getCurrentUser, getDoc, setMyRole } from '../lib/api';
+import { getCurrentUser, getDoc, getToken } from '../lib/api';
 import { connectDocument, destroySession, type CollabSession } from '../lib/collab';
+import { useSaveStatus } from '../lib/saveStatus';
+import { MemberPanel } from '../components/MemberPanel';
 
 const ROLE_LABEL: Record<DocRole, string> = {
   owner: '所有者',
   editor: '可编辑',
   spectator: '只读',
 };
+
+/** 超限拦截时广播给 UI，用于提示本次输入被拦截（不改写 ProseMirror 状态）。 */
+const LIMIT_EVENT = 'lingshu:doc-limit';
+
+/**
+ * 单文档字数上限（8 万字）。达到上限后拦截继续输入的本地事务，引导拆分。
+ * 远端协同事务与撤销事务必须放行，否则多端内容会在上限边界处无法收敛。
+ */
+const CharLimit = Extension.create({
+  name: 'charLimit',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        filterTransaction: (transaction) => {
+          if (!transaction.docChanged) return true;
+          if (transaction.getMeta('y-sync') || transaction.getMeta('addToHistory') === false) return true;
+          if (transaction.doc.textContent.length <= LIMITS.maxDocChars) return true;
+          window.dispatchEvent(new Event(LIMIT_EVENT));
+          return false;
+        },
+      }),
+    ];
+  },
+});
 
 interface EditorProps {
   detail: DocDetail;
@@ -33,6 +61,7 @@ function CollabEditor({ detail, session }: EditorProps) {
       extensions: [
         // 协同模式下撤销由 Yjs 的 UndoManager 负责，关闭本地历史
         StarterKit.configure({ undoRedo: false }),
+        CharLimit,
         Collaboration.configure({ document: session.doc }),
         ...(editable
           ? [
@@ -51,6 +80,7 @@ function CollabEditor({ detail, session }: EditorProps) {
   );
 
   const [chars, setChars] = useState(0);
+  const [blocked, setBlocked] = useState(false);
 
   useEffect(() => {
     if (!editor) return;
@@ -61,6 +91,21 @@ function CollabEditor({ detail, session }: EditorProps) {
       editor.off('update', update);
     };
   }, [editor]);
+
+  // 用户继续输入/粘贴导致超限时，给出即时反馈并引导拆分
+  useEffect(() => {
+    let timer: number | undefined;
+    const onBlocked = (): void => {
+      setBlocked(true);
+      if (timer !== undefined) window.clearTimeout(timer);
+      timer = window.setTimeout(() => setBlocked(false), 4_000);
+    };
+    window.addEventListener(LIMIT_EVENT, onBlocked);
+    return () => {
+      window.removeEventListener(LIMIT_EVENT, onBlocked);
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, []);
 
   /**
    * awareness 治理（客户端两层）：
@@ -119,16 +164,19 @@ function CollabEditor({ detail, session }: EditorProps) {
     };
   }, [editor, editable, session]);
 
-  const overLimit = chars > LIMITS.maxDocChars;
+  const atLimit = chars >= LIMITS.maxDocChars;
 
   return (
     <>
       <div className="editor-status">
-        <span className={overLimit ? 'error' : 'muted'}>
+        <span className={atLimit ? 'error' : 'muted'}>
           {chars} / {LIMITS.maxDocChars} 字
         </span>
-        {overLimit ? (
-          <span className="error">已超出单文档上限，请拆分为多篇（一期不支持自动分片）</span>
+        {atLimit ? (
+          <span className="error">已达单文档上限，继续输入会被拦截；请拆分为多篇（一期不支持自动分片）</span>
+        ) : null}
+        {blocked ? (
+          <span className="error">本次输入超出 8 万字上限，已拦截；请拆分为多篇</span>
         ) : null}
       </div>
       <EditorContent editor={editor} />
@@ -143,6 +191,7 @@ export function DocEditorPage() {
   const [session, setSession] = useState<CollabSession | null>(null);
   const [status, setStatus] = useState('连接中');
   const [error, setError] = useState('');
+  const save = useSaveStatus(id, session);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,7 +211,12 @@ export function DocEditorPage() {
         created.provider.on('synced', () => setStatus('已同步'));
         if (!cancelled) setSession(created);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : '打开文档失败');
+        if (cancelled) return;
+        if (!getToken()) {
+          navigate('/login', { replace: true });
+          return;
+        }
+        setError(err instanceof Error ? err.message : '打开文档失败');
       }
     })();
 
@@ -172,31 +226,17 @@ export function DocEditorPage() {
     };
   }, [id]);
 
-  async function handleRole(next: Exclude<DocRole, 'owner'>): Promise<void> {
-    try {
-      setDetail(await setMyRole(id, next));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '切换角色失败');
-    }
-  }
-
   return (
     <div className="page">
       <header className="topbar">
         <div>
           <h1>{detail?.title ?? '文档'}</h1>
           <p className="muted">
-            {detail ? `${ROLE_LABEL[detail.role]} · ${status}` : '加载中…'}
+            {detail ? `${ROLE_LABEL[detail.role]} · ${status} · ${save.text}` : '加载中…'}
           </p>
         </div>
         <div className="actions">
-          {detail && detail.role !== 'owner' ? (
-            <button
-              onClick={() => void handleRole(detail.role === 'spectator' ? 'editor' : 'spectator')}
-            >
-              {detail.role === 'spectator' ? '切换为可编辑' : '切换为只读'}
-            </button>
-          ) : null}
+          {detail ? <MemberPanel docId={detail.id} role={detail.role} /> : null}
           <button onClick={() => navigate('/')}>返回列表</button>
         </div>
       </header>

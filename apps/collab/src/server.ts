@@ -3,6 +3,7 @@ import { Server } from '@hocuspocus/server';
 import { LIMITS, docIdFromDocumentName, isSpectator, type CollabContext } from '@lingshu/shared';
 import { env } from './env.js';
 import { authenticateDocument } from './impl/auth.js';
+import { addLiveConnection, removeLiveConnection } from './impl/liveConnections.js';
 import { persistence } from './impl/persistence.js';
 
 /**
@@ -157,8 +158,21 @@ export function createCollabServer(): Server<CollabContext> {
       return result.context;
     },
 
-    onDisconnect: async ({ documentName, socketId }) => {
+    // 登记在线连接，供成员被移除/降级时立即断开
+    connected: async ({ connection, context }) => {
+      if (!context) return;
+      addLiveConnection({
+        socketId: connection.socketId,
+        documentId: context.documentId,
+        userId: context.user.id,
+        role: context.role,
+        connection,
+      });
+    },
+
+    onDisconnect: async ({ documentName, socketId, context }) => {
       releaseSlot(documentName, socketId);
+      removeLiveConnection(context?.documentId ?? docIdFromDocumentName(documentName), socketId);
     },
 
     beforeHandleAwareness: async ({ states, awareness, context, documentName }) => {

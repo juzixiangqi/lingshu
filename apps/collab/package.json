@@ -15,6 +15,7 @@
     "@hocuspocus/server": "^4.8.0",
     "@lingshu/shared": "workspace:*",
     "dotenv": "^18.0.9",
+    "ioredis": "^6.0.0",
     "jose": "^6.2.14",
     "pg": "^8.23.1",
     "yjs": "^13.6.33"

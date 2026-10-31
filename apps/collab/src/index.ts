@@ -1,9 +1,11 @@
 import { pool } from './db.js';
 import { env } from './env.js';
+import { startAclWatcher } from './impl/aclWatcher.js';
 import { createCollabServer } from './server.js';
 
 const server = createCollabServer();
 await server.listen(env.port);
+startAclWatcher();
 
 console.log(
   `[collab] shard=${env.shardId} listening ws://localhost:${env.port} ` +

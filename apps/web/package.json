@@ -13,6 +13,7 @@
     "@8space-lab/univer-collab-bridge": "0.2.2",
     "@hocuspocus/provider": "^4.8.0",
     "@lingshu/shared": "workspace:*",
+    "@tiptap/core": "^3.32.2",
     "@tiptap/extension-collaboration": "^3.32.2",
     "@tiptap/extension-collaboration-caret": "^3.32.2",
     "@tiptap/pm": "^3.32.2",

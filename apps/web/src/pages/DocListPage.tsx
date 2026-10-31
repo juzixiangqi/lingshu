@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { DocDetail, DocKind } from '@lingshu/shared';
-import {
-  createDoc,
-  ensureSession,
-  getCurrentUser,
-  listDocs,
-  switchIdentity,
-} from '../lib/api';
+import { createDoc, getCurrentUser, getToken, listDocs, logout } from '../lib/api';
 
 const KIND_LABEL: Record<DocKind, string> = {
   doc: '笺 · 文档',
@@ -22,8 +16,8 @@ const ROLE_LABEL: Record<DocDetail['role'], string> = {
 
 export function DocListPage() {
   const navigate = useNavigate();
+  const user = getCurrentUser();
   const [docs, setDocs] = useState<DocDetail[]>([]);
-  const [userName, setUserName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -31,10 +25,12 @@ export function DocListPage() {
     setLoading(true);
     setError('');
     try {
-      const user = await ensureSession();
-      setUserName(user.displayName);
       setDocs(await listDocs());
     } catch (err) {
+      if (!getToken()) {
+        navigate('/login', { replace: true });
+        return;
+      }
       setError(err instanceof Error ? err.message : '加载失败');
     } finally {
       setLoading(false);
@@ -50,13 +46,17 @@ export function DocListPage() {
       const doc = await createDoc(kind);
       navigate(kind === 'sheet' ? `/sheet/${doc.id}` : `/doc/${doc.id}`);
     } catch (err) {
+      if (!getToken()) {
+        navigate('/login', { replace: true });
+        return;
+      }
       setError(err instanceof Error ? err.message : '创建失败');
     }
   }
 
-  async function handleSwitch(): Promise<void> {
-    await switchIdentity();
-    await refresh();
+  function handleLogout(): void {
+    logout();
+    navigate('/login', { replace: true });
   }
 
   return (
@@ -65,11 +65,11 @@ export function DocListPage() {
         <div>
           <h1>灵枢协同办公套件</h1>
           <p className="muted">
-            当前身份：{userName || getCurrentUser()?.displayName || '未登录'}
+            当前身份：{user ? `${user.displayName}（${user.email}）` : '未登录'}
           </p>
         </div>
         <div className="actions">
-          <button onClick={() => void handleSwitch()}>切换身份</button>
+          <button onClick={handleLogout}>退出登录</button>
           <button className="primary" onClick={() => void handleCreate('doc')}>
             新建文档
           </button>
