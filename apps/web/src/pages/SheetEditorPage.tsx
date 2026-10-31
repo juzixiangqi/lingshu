@@ -30,7 +30,10 @@ import {
 } from '../lib/collab';
 import { useSaveStatus } from '../lib/saveStatus';
 import { MemberPanel } from '../components/MemberPanel';
+import { SheetFileIO } from '../components/SheetFileIO';
 import { VersionPanel } from '../components/VersionPanel';
+
+type UniverAPI = ReturnType<typeof createUniver>['univerAPI'];
 
 /**
  * 三个 sheet 用于验证跨 sheet 协同：bridge 的 op 带 subUnitId，
@@ -95,6 +98,7 @@ export function SheetEditorPage() {
   const [session, setSession] = useState<CollabSession | null>(null);
   const [status, setStatus] = useState('连接中');
   const [error, setError] = useState('');
+  const [sheetApi, setSheetApi] = useState<UniverAPI | null>(null);
   const save = useSaveStatus(id, session);
 
   /**
@@ -162,6 +166,7 @@ export function SheetEditorPage() {
         disposeUniver = () => univerAPI.dispose();
 
         univerAPI.createWorkbook(buildWorkbookSnapshot(doc));
+        setSheetApi(univerAPI);
 
         // 插件 type 是 UNIVER_SHEET：必须先有 sheet 类型加载，Univer 才会把它 flush 进来，
         // 所以注册顺序固定为“建工作簿 → 注册桥”。
@@ -203,6 +208,7 @@ export function SheetEditorPage() {
       disposeUniver?.();
       if (session) destroySession(session);
       setSession(null);
+      setSheetApi(null);
     };
   }, [id]);
 
@@ -218,6 +224,9 @@ export function SheetEditorPage() {
           </p>
         </div>
         <div className="actions">
+          {detail ? (
+            <SheetFileIO api={sheetApi} role={detail.role} title={detail.title} />
+          ) : null}
           {detail ? <VersionPanel docId={detail.id} role={detail.role} onRestore={restore} /> : null}
           {detail ? <MemberPanel docId={detail.id} role={detail.role} /> : null}
           <button onClick={() => navigate('/')}>返回列表</button>
