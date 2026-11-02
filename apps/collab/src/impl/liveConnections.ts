@@ -35,15 +35,19 @@ export function removeLiveConnection(documentId: string, socketId: string): void
   if (group.size === 0) byDocument.delete(documentId);
 }
 
-/** 重新校验该文档所有在线成员的角色，角色失效或变化的连接立即关闭。 */
+/**
+ * 重新校验该文档所有在线成员的角色，角色失效或变化的连接立即关闭。
+ * 文档被软删除后，这里的角色集合为空，所有连接会被一并断开。
+ */
 export async function syncDocumentMembership(documentId: string): Promise<void> {
   const group = byDocument.get(documentId);
   if (!group || group.size === 0) return;
 
   const userIds = [...new Set([...group.values()].map((entry) => entry.userId))];
   const rows = await query<MemberRoleRow>(
-    `select user_id, role from doc_members
-      where document_id = $1 and user_id = any($2::uuid[])`,
+    `select m.user_id, m.role from doc_members m
+       join documents d on d.id = m.document_id and d.deleted_at is null
+      where m.document_id = $1 and m.user_id = any($2::uuid[])`,
     [documentId, userIds],
   );
   const roles = new Map(rows.map((row) => [row.user_id, row.role]));

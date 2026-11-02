@@ -62,6 +62,7 @@ async function resolveImMember(token: string, documentId: string): Promise<ImMem
     `select m.role, u.id, u.email, u.display_name
        from doc_members m
        join users u on u.id = m.user_id
+       join documents d on d.id = m.document_id and d.deleted_at is null
       where m.document_id = $1 and u.im_user_id = $2`,
     [documentId, identity.imUserId],
   );
@@ -103,7 +104,9 @@ export const authenticateDocument: AuthenticateDocument = async (input: AuthInpu
       if (!local) return { allowed: false, reason: 'invalid token' };
       user = local;
       const rows = await query<MemberRoleRow>(
-        `select role from doc_members where document_id = $1 and user_id = $2`,
+        `select m.role from doc_members m
+           join documents d on d.id = m.document_id and d.deleted_at is null
+          where m.document_id = $1 and m.user_id = $2`,
         [documentId, local.id],
       );
       role = rows[0]?.role;

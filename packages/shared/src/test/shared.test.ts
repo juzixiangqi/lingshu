@@ -42,6 +42,7 @@ describe('角色能力', () => {
   it('按文档类型给出默认标题', () => {
     expect(pickTitle('doc')).toBe('未命名文档');
     expect(pickTitle('sheet')).toBe('未命名表格');
+    expect(pickTitle('mindmap')).toBe('未命名导图');
   });
 });
 
@@ -56,6 +57,7 @@ describe('文档命名约定', () => {
   it('按 kind 返回需要连接的文档名列表', () => {
     expect(documentNamesFor('abc', 'doc')).toEqual(['abc/body']);
     expect(documentNamesFor('abc', 'sheet')).toEqual(['abc/workbook', 'abc/sheet/main']);
+    expect(documentNamesFor('abc', 'mindmap')).toEqual(['abc/mind']);
   });
 
   it('从文档名反解文档 id 并识别 sheet', () => {

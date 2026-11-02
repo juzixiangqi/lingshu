@@ -20,7 +20,7 @@ import {
   type CollabOp,
 } from '@8space-lab/univer-collab-bridge';
 import { LIMITS, workbookDocumentName, type DocDetail, type DocVersionSnapshot } from '@lingshu/shared';
-import { getCurrentUser, getDoc, getToken } from '../lib/api';
+import { getCurrentUser, getDoc, getToken, updateDocIcon } from '../lib/api';
 import {
   RESTORE_STATELESS,
   collabStatusLabel,
@@ -30,6 +30,7 @@ import {
   type CollabSession,
 } from '../lib/collab';
 import { useSaveStatus } from '../lib/saveStatus';
+import { DocIconPicker } from '../components/DocIconPicker';
 import { MemberPanel } from '../components/MemberPanel';
 import { SheetFileIO } from '../components/SheetFileIO';
 import { VersionPanel } from '../components/VersionPanel';
@@ -101,6 +102,21 @@ export function SheetEditorPage() {
   const [error, setError] = useState('');
   const [sheetApi, setSheetApi] = useState<UniverAPI | null>(null);
   const save = useSaveStatus(id, session);
+
+  const handleDocIcon = useCallback(
+    async (next: string | null) => {
+      if (!detail) return;
+      try {
+        const updated = await updateDocIcon(detail.id, next);
+        setDetail(updated);
+        setError('');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '设置图标失败');
+        throw err;
+      }
+    },
+    [detail],
+  );
 
   /**
    * 表格版本恢复：把历史快照的 opLog 整体写回当前 Y.Doc，再让所有在线客户端重载。
@@ -225,7 +241,17 @@ export function SheetEditorPage() {
     <div className="page">
       <header className="topbar">
         <div>
-          <h1>{detail?.title ?? '表格'}</h1>
+          <div className="doc-title-row">
+            {detail ? (
+              <DocIconPicker
+                icon={detail.icon}
+                kind={detail.kind}
+                editable={detail.role !== 'spectator'}
+                onChange={handleDocIcon}
+              />
+            ) : null}
+            <h1>{detail?.title ?? '表格'}</h1>
+          </div>
           <p className="muted">
             {detail
               ? `单文档上限 ${LIMITS.maxConnectionsPerDoc} 人 · ${status} · ${save.text}`

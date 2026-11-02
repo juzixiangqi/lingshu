@@ -237,16 +237,24 @@ describe('存储状态 / 版本历史 / 恢复', () => {
     const doc = await createDocFor(owner);
     const names = documentNamesFor(doc.id, 'doc');
 
-    const insertVersion = async (ageDays: number, version: number) => {
+    const insertVersion = async (ageDays: number, version: number, createdByName = '') => {
       const rows = await dbQuery<{ id: string }>(
-        `insert into doc_snapshot_versions (document_name, document_id, snapshot, version, created_at)
-         values ($1, $2, $3::jsonb, $4, now() - make_interval(days => $5))
+        `insert into doc_snapshot_versions
+           (document_name, document_id, snapshot, version, created_at, created_by_name)
+         values ($1, $2, $3::jsonb, $4, now() - make_interval(days => $5), $6)
          returning id`,
-        [names[0], doc.id, JSON.stringify({ format: 'yjs-v1', base64: 'aGVsbG8=' }), version, ageDays],
+        [
+          names[0],
+          doc.id,
+          JSON.stringify({ format: 'yjs-v1', base64: 'aGVsbG8=' }),
+          version,
+          ageDays,
+          createdByName,
+        ],
       );
       return rows[0]!.id;
     };
-    await insertVersion(0, 1);
+    await insertVersion(0, 1, '编辑者甲');
     await insertVersion(8, 2);
     await insertVersion(100, 3);
 
@@ -256,6 +264,7 @@ describe('存储状态 / 版本历史 / 恢复', () => {
     expect(versions).toHaveLength(3);
     expect(versions.map((v: { version: number }) => v.version)).toEqual([1, 2, 3]);
     expect(versions[0].precision).toBe('content');
+    expect(versions[0].createdByName).toBe('编辑者甲');
     expect(versions[1].precision).toBe('snapshot');
     expect(versions[2].precision).toBe('snapshot');
 

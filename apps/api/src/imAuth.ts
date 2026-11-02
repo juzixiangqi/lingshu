@@ -3,8 +3,9 @@ import { query } from './db.js';
 import { env } from './env.js';
 
 /**
- * IM（若依）统一登录的落地层：
- * 1. 用 IM token 调 /getInfo 换取 IM 用户信息（由 shared 的解析器负责缓存）；
+ * IM 统一登录的落地层：
+ * 1. 用 IM token 调 IM 的用户接口换取身份（由 shared 的解析器负责缓存）；
+ *    HuLa 是 /oauth/anyone/getUserInfo，若依是 /getInfo，两者都由配置决定；
  * 2. 把 IM 用户镜像成本地 users 行，业务表继续用本地 uuid，避免全库改 user_id 类型。
  */
 const resolver =

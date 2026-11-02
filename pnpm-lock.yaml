@@ -124,9 +124,24 @@ importers:
       '@tiptap/extension-collaboration-caret':
         specifier: ^3.32.2
         version: 3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2)(@tiptap/y-tiptap@3.0.12(prosemirror-model@1.25.12)(prosemirror-state@1.4.4)(prosemirror-view@1.42.8)(y-protocols@1.0.7(yjs@13.6.33))(yjs@13.6.33))
+      '@tiptap/extension-highlight':
+        specifier: 3.32.2
+        version: 3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))
       '@tiptap/extension-mention':
         specifier: ^3.32.2
         version: 3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2)(@tiptap/suggestion@3.32.2(@floating-ui/dom@1.8.0)(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2))
+      '@tiptap/extension-table':
+        specifier: 3.32.2
+        version: 3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2)
+      '@tiptap/extension-task-item':
+        specifier: 3.32.2
+        version: 3.32.2(@tiptap/extension-list@3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2))
+      '@tiptap/extension-task-list':
+        specifier: 3.32.2
+        version: 3.32.2(@tiptap/extension-list@3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2))
+      '@tiptap/extension-text-align':
+        specifier: 3.32.2
+        version: 3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))
       '@tiptap/pm':
         specifier: ^3.32.2
         version: 3.32.2
@@ -145,6 +160,9 @@ importers:
       '@univerjs/presets':
         specifier: 1.3.0
         version: 1.3.0(react@19.3.1)(rxjs@7.8.2)
+      mind-elixir:
+        specifier: 5.15.1
+        version: 5.15.1
       react:
         specifier: ^19.3.1
         version: 19.3.1
@@ -1098,6 +1116,11 @@ packages:
     peerDependencies:
       '@tiptap/core': 3.32.2
 
+  '@tiptap/extension-highlight@3.32.2':
+    resolution: {integrity: sha512-tgoIFlGNgVpmGhHOFHktMsl/EdERHMQ/yLEgWdoCfACsPDJt6aTG3mzkn15tbcRBH5LXA1qDrJuplu2jxD0dPg==}
+    peerDependencies:
+      '@tiptap/core': 3.32.2
+
   '@tiptap/extension-horizontal-rule@3.32.2':
     resolution: {integrity: sha512-Pl0YRS60R339yHrAWGhPT9WHIlD72BO6SGVdj8lBs2OAaYw5RQL/1BGZi+7UvAyc2yJxaRC4XN9X4jdQHDUq9A==}
     peerDependencies:
@@ -1150,6 +1173,27 @@ packages:
 
   '@tiptap/extension-strike@3.32.2':
     resolution: {integrity: sha512-i3d4vCrZySS9g5nGa5W0LS6LPMKxcAnJO6uADTnGVlKK0ewklcWWZbZ9GB/Fpx/IjKAvXWeayjfsNpTae/yVZg==}
+    peerDependencies:
+      '@tiptap/core': 3.32.2
+
+  '@tiptap/extension-table@3.32.2':
+    resolution: {integrity: sha512-CIFQaKOwdNFPaApymZRNhAnpGpl3Y53V1sqTgQV9FtI4qi6H3mAR032GtasUzo7DpBaOHpNNbMgph0yyVCJF9g==}
+    peerDependencies:
+      '@tiptap/core': 3.32.2
+      '@tiptap/pm': 3.32.2
+
+  '@tiptap/extension-task-item@3.32.2':
+    resolution: {integrity: sha512-W824N/FhG0JBL/gGzy57dw2duoj6gWmOGtiFg2tBuZxW+6thGWxzdyz6qVL98hJ9BaZpOdx2bwxH4GzMpFjDzQ==}
+    peerDependencies:
+      '@tiptap/extension-list': 3.32.2
+
+  '@tiptap/extension-task-list@3.32.2':
+    resolution: {integrity: sha512-nnJa/ih9EgiUcP5z8Zth4lnPHBZQyJqmNv3Wvpyr+QvG45kqtRQUIyt51iy9yQNdVM9YaHyO5KcVnmtXTIzxpg==}
+    peerDependencies:
+      '@tiptap/extension-list': 3.32.2
+
+  '@tiptap/extension-text-align@3.32.2':
+    resolution: {integrity: sha512-o1DKPodB0FKqpdYp/OKyM6nYSbZXnPEC9rWx/O/Vccs2OOeF08iOO3cKYs1lS/qNg/xFeR8gKxGMrve7CfCkKA==}
     peerDependencies:
       '@tiptap/core': 3.32.2
 
@@ -1715,6 +1759,9 @@ packages:
   mime-types@2.1.35:
     resolution: {integrity: sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==}
     engines: {node: '>= 0.6'}
+
+  mind-elixir@5.15.1:
+    resolution: {integrity: sha512-Lm/IfNC3jnxqcchKsjkaX/arXDvgPvpPT+BLfTH2Kl1taO9+RPtv/jrCevn1LqPzHoWL2Yl4QeP/xFpjZuZFHw==}
 
   minio@8.0.7:
     resolution: {integrity: sha512-E737MgufW8CeQAsTAtnEMrxZ9scMSf29kkhZoXzDTKj/Jszzo2SfeZUH9wbDQH2Rsq6TCtl/yQL0+XdVKZansQ==}
@@ -3034,6 +3081,10 @@ snapshots:
     dependencies:
       '@tiptap/core': 3.32.2(@tiptap/pm@3.32.2)
 
+  '@tiptap/extension-highlight@3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))':
+    dependencies:
+      '@tiptap/core': 3.32.2(@tiptap/pm@3.32.2)
+
   '@tiptap/extension-horizontal-rule@3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2)':
     dependencies:
       '@tiptap/core': 3.32.2(@tiptap/pm@3.32.2)
@@ -3077,6 +3128,23 @@ snapshots:
       '@tiptap/core': 3.32.2(@tiptap/pm@3.32.2)
 
   '@tiptap/extension-strike@3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))':
+    dependencies:
+      '@tiptap/core': 3.32.2(@tiptap/pm@3.32.2)
+
+  '@tiptap/extension-table@3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2)':
+    dependencies:
+      '@tiptap/core': 3.32.2(@tiptap/pm@3.32.2)
+      '@tiptap/pm': 3.32.2
+
+  '@tiptap/extension-task-item@3.32.2(@tiptap/extension-list@3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2))':
+    dependencies:
+      '@tiptap/extension-list': 3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2)
+
+  '@tiptap/extension-task-list@3.32.2(@tiptap/extension-list@3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2))':
+    dependencies:
+      '@tiptap/extension-list': 3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2)
+
+  '@tiptap/extension-text-align@3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))':
     dependencies:
       '@tiptap/core': 3.32.2(@tiptap/pm@3.32.2)
 
@@ -3797,6 +3865,8 @@ snapshots:
   mime-types@2.1.35:
     dependencies:
       mime-db: 1.52.0
+
+  mind-elixir@5.15.1: {}
 
   minio@8.0.7:
     dependencies:

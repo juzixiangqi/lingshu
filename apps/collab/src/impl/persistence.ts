@@ -1,4 +1,4 @@
-import type { DocPersistence, SnapshotPayload } from '../contracts/persistence.js';
+import type { DocPersistence, Operator, SnapshotPayload } from '../contracts/persistence.js';
 import { query } from '../db.js';
 
 interface SnapshotRow {
@@ -46,9 +46,17 @@ export const persistence: DocPersistence = {
     if (!row) return;
 
     await query(
-      `insert into doc_snapshot_versions (document_name, document_id, snapshot, version)
-       values ($1, $2, $3::jsonb, $4)`,
-      [payload.documentName, payload.documentId, JSON.stringify(row.snapshot), row.version],
+      `insert into doc_snapshot_versions
+         (document_name, document_id, snapshot, version, created_by, created_by_name)
+       values ($1, $2, $3::jsonb, $4, $5, $6)`,
+      [
+        payload.documentName,
+        payload.documentId,
+        JSON.stringify(row.snapshot),
+        row.version,
+        payload.operator?.userId ?? null,
+        payload.operator?.userName ?? '',
+      ],
     );
 
     await query(
@@ -73,10 +81,22 @@ export const persistence: DocPersistence = {
     );
   },
 
-  async appendOp(documentName: string, documentId: string, update: Uint8Array): Promise<void> {
+  async appendOp(
+    documentName: string,
+    documentId: string,
+    update: Uint8Array,
+    operator?: Operator | null,
+  ): Promise<void> {
     await query(
-      `insert into doc_op_log (document_name, document_id, payload) values ($1, $2, $3::jsonb)`,
-      [documentName, documentId, JSON.stringify({ format: 'yjs-update', base64: Buffer.from(update).toString('base64') })],
+      `insert into doc_op_log (document_name, document_id, payload, user_id, user_name)
+       values ($1, $2, $3::jsonb, $4, $5)`,
+      [
+        documentName,
+        documentId,
+        JSON.stringify({ format: 'yjs-update', base64: Buffer.from(update).toString('base64') }),
+        operator?.userId ?? null,
+        operator?.userName ?? '',
+      ],
     );
   },
 };

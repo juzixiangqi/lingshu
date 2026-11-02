@@ -5,7 +5,10 @@ import { env } from './env.js';
 import { pingDatabase } from './db.js';
 import { pingRedis } from './redis.js';
 import { authRoutes } from './routes/auth.js';
+import { commentsRoutes } from './routes/comments.js';
 import { docsRoutes } from './routes/docs.js';
+import { fileRoutes } from './routes/files.js';
+import { internalAdminRoutes } from './routes/internalAdmin.js';
 import { notificationsRoutes } from './routes/notifications.js';
 
 /**
@@ -72,4 +75,9 @@ app.onError(appErrorHandler);
 
 app.route('/api/auth', authRoutes);
 app.route('/api/docs', docsRoutes);
+// 评论与文档同前缀，Hono 允许同一 basePath 挂多个子路由
+app.route('/api/docs', commentsRoutes);
+app.route('/api/files', fileRoutes);
 app.route('/api/notifications', notificationsRoutes);
+// 管理端接口：不对浏览器暴露，鉴权与用户 token 完全隔离
+app.route('/internal/admin', internalAdminRoutes);

@@ -9,6 +9,9 @@ import { LoginPage } from './pages/LoginPage';
 const SheetEditorPage = lazy(() =>
   import('./pages/SheetEditorPage').then((module) => ({ default: module.SheetEditorPage })),
 );
+const MindMapPage = lazy(() =>
+  import('./pages/MindMapPage').then((module) => ({ default: module.MindMapPage })),
+);
 
 function RequireAuth({ children }: { children: ReactNode }) {
   return getToken() ? children : <Navigate to="/login" replace />;
@@ -40,6 +43,16 @@ export function App() {
           <RequireAuth>
             <Suspense fallback={<p className="page muted">表格组件加载中…</p>}>
               <SheetEditorPage />
+            </Suspense>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/mind/:id"
+        element={
+          <RequireAuth>
+            <Suspense fallback={<p className="page muted">导图组件加载中…</p>}>
+              <MindMapPage />
             </Suspense>
           </RequireAuth>
         }

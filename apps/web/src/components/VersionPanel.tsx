@@ -107,7 +107,11 @@ export function VersionPanel({ docId, role, onRestore }: VersionPanelProps) {
                   <li key={version.id} className="member-item">
                     <div>
                       <span className="member-name">版本 #{version.version}</span>
-                      <span className="muted"> {formatTime(version.createdAt)}</span>
+                      <span className="muted">
+                        {' '}
+                        {formatTime(version.createdAt)}
+                        {version.createdByName ? ` · ${version.createdByName}` : ''}
+                      </span>
                     </div>
                     <div className="member-actions">
                       <span className="doc-role" title={PRECISION_HINT[version.precision]}>

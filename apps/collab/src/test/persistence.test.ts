@@ -56,7 +56,7 @@ describe('persistence.load / saveSnapshot / appendOp', () => {
   });
 
   it('保存快照后可按原字节加载，版本号递增并追加历史版本', async () => {
-    const { documentId, documentName } = await seedDocument();
+    const { userId, documentId, documentName } = await seedDocument();
     const first = new Uint8Array([1, 2, 3]);
     await persistence.saveSnapshot({ documentName, documentId, state: first });
 
@@ -71,7 +71,12 @@ describe('persistence.load / saveSnapshot / appendOp', () => {
     expect(Number(snapshotRow[0]!.version)).toBe(1);
 
     const second = new Uint8Array([4, 5]);
-    await persistence.saveSnapshot({ documentName, documentId, state: second });
+    await persistence.saveSnapshot({
+      documentName,
+      documentId,
+      state: second,
+      operator: { userId, userName: '协作用户' },
+    });
 
     const updated = await query<{ version: string }>(
       'select version from doc_snapshots where document_name = $1',
@@ -80,26 +85,41 @@ describe('persistence.load / saveSnapshot / appendOp', () => {
     expect(Number(updated[0]!.version)).toBe(2);
     expect(Array.from((await persistence.load(documentName))!)).toEqual([4, 5]);
 
-    const history = await query<{ version: string }>(
-      'select version from doc_snapshot_versions where document_name = $1 order by version',
+    const history = await query<{ version: string; created_by: string | null; created_by_name: string }>(
+      'select version, created_by, created_by_name from doc_snapshot_versions where document_name = $1 order by version',
       [documentName],
     );
     expect(history.map((row) => Number(row.version))).toEqual([1, 2]);
+    // 第一次落盘没有操作者，第二次记录最后一位编辑者
+    expect(history[0]!.created_by).toBeNull();
+    expect(history[0]!.created_by_name).toBe('');
+    expect(history[1]!.created_by).toBe(userId);
+    expect(history[1]!.created_by_name).toBe('协作用户');
   });
 
-  it('appendOp 以 base64 记录 update，可按字节还原', async () => {
-    const { documentId, documentName } = await seedDocument();
+  it('appendOp 以 base64 记录 update，并按字节还原，同时记录操作者', async () => {
+    const { userId, documentId, documentName } = await seedDocument();
     const update = new Uint8Array([9, 8, 7]);
-    await persistence.appendOp(documentName, documentId, update);
+    await persistence.appendOp(documentName, documentId, update, {
+      userId,
+      userName: '协作用户',
+    });
 
-    const rows = await query<{ payload: { format: string; base64: string }; document_id: string }>(
-      'select payload, document_id from doc_op_log where document_name = $1',
+    const rows = await query<{
+      payload: { format: string; base64: string };
+      document_id: string;
+      user_id: string | null;
+      user_name: string;
+    }>(
+      'select payload, document_id, user_id, user_name from doc_op_log where document_name = $1',
       [documentName],
     );
     expect(rows).toHaveLength(1);
     expect(rows[0]!.document_id).toBe(documentId);
     expect(rows[0]!.payload.format).toBe('yjs-update');
     expect(Array.from(Buffer.from(rows[0]!.payload.base64, 'base64'))).toEqual([9, 8, 7]);
+    expect(rows[0]!.user_id).toBe(userId);
+    expect(rows[0]!.user_name).toBe('协作用户');
   });
 
   it('保存快照时裁剪 7 天前 op 流，并保留 7-90 天每天最早一份版本', async () => {

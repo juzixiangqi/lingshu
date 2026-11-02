@@ -32,7 +32,9 @@ notificationsRoutes.use('*', requireAuth);
 
 async function unreadCount(userId: string): Promise<number> {
   const rows = await query<UnreadRow>(
-    `select count(*)::text as unread from notifications where user_id = $1 and read_at is null`,
+    `select count(*)::text as unread
+       from notifications n join documents d on d.id = n.document_id
+      where n.user_id = $1 and n.read_at is null and d.deleted_at is null`,
     [userId],
   );
   return Number(rows[0]?.unread ?? 0);
@@ -47,7 +49,7 @@ notificationsRoutes.get('/', async (c) => {
        from notifications n
        join documents d on d.id = n.document_id
        left join users u on u.id = n.actor_id
-      where n.user_id = $1
+      where n.user_id = $1 and d.deleted_at is null
       order by n.created_at desc
       limit ${NOTIFICATION_LIMIT}`,
     [user.id],

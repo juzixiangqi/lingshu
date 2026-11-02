@@ -331,21 +331,29 @@ describe('server configuration 钩子', () => {
     expect(connection.close).toHaveBeenCalledTimes(1);
   });
 
-  it('onChange 异步写入 op 流', async () => {
+  it('onChange 异步写入 op 流并记录操作者', async () => {
     const member = await seedMember('editor');
     await config.onChange({
       documentName: member.documentName,
       update: new Uint8Array([1, 2, 3]),
+      context: {
+        user: { id: member.userId, email: 'user@example.com', displayName: '用户' },
+        role: 'editor',
+        documentId: member.documentId,
+      },
     });
     const start = Date.now();
-    let rows: { id: string }[] = [];
+    let rows: { id: string; user_id: string | null; user_name: string }[] = [];
     while (rows.length === 0 && Date.now() - start < 1_000) {
       await new Promise((resolve) => setTimeout(resolve, 20));
-      rows = await query<{ id: string }>('select id from doc_op_log where document_name = $1', [
-        member.documentName,
-      ]);
+      rows = await query<{ id: string; user_id: string | null; user_name: string }>(
+        'select id, user_id, user_name from doc_op_log where document_name = $1',
+        [member.documentName],
+      );
     }
     expect(rows).toHaveLength(1);
+    expect(rows[0]!.user_id).toBe(member.userId);
+    expect(rows[0]!.user_name).toBe('用户');
   });
 
   it('Database 扩展的 fetch/store 委托给 persistence，并吞掉落盘错误', async () => {

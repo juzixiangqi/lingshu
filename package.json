@@ -15,6 +15,7 @@
     "infra:down": "docker compose down",
     "infra:reset": "docker compose down -v",
     "db:init": "pnpm --filter @lingshu/api db:init",
+    "mock:admin": "node tools/admin-mock/server.mjs",
     "loadtest:m0": "node apps/web/scripts/m0-loadtest.mjs",
     "fps:m0": "node apps/web/scripts/m0-fps.mjs",
     "bridge:m0": "node apps/web/scripts/m0-bridge.mjs",

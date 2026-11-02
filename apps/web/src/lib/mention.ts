@@ -89,8 +89,19 @@ export function createMentionExtension({ getMembers, onMention }: MentionExtensi
           });
           const rect = latest?.clientRect?.();
           if (rect) {
-            popup.style.left = `${Math.round(rect.left)}px`;
-            popup.style.top = `${Math.round(rect.bottom + 6)}px`;
+            const gap = 6;
+            // 先恢复 CSS 上限再量真实高度，避免上一次压缩后的高度影响判断
+            popup.style.maxHeight = '';
+            const height = popup.offsetHeight;
+            const width = popup.offsetWidth;
+            const belowSpace = window.innerHeight - rect.bottom - gap - 8;
+            const aboveSpace = rect.top - gap - 8;
+            const flip = belowSpace < Math.min(height, 240) && aboveSpace > belowSpace;
+            const space = Math.max(80, flip ? aboveSpace : belowSpace);
+            const visible = Math.min(height, space);
+            popup.style.maxHeight = `${Math.round(space)}px`;
+            popup.style.top = `${Math.round(flip ? Math.max(8, rect.top - gap - visible) : rect.bottom + gap)}px`;
+            popup.style.left = `${Math.round(Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)))}px`;
           }
         };
 

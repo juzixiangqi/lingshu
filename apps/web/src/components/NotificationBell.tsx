@@ -89,7 +89,7 @@ export function NotificationBell() {
             {error ? <p className="error">{error}</p> : null}
 
             {notifications.length === 0 ? (
-              <p className="muted">还没有通知。被 @提及 时会出现在这里。</p>
+              <p className="muted">还没有通知。被 @提及 或评论有回复时会出现在这里。</p>
             ) : (
               <ul className="member-list">
                 {notifications.map((item) => (
@@ -102,7 +102,7 @@ export function NotificationBell() {
                         {item.actorName}
                         {' 在 '}
                         {item.documentTitle}
-                        {' 中提及了你'}
+                        {item.kind === 'comment' ? ' 中发表了评论' : ' 中提及了你'}
                       </span>
                       {item.excerpt ? <span className="notification-excerpt">{item.excerpt}</span> : null}
                       <span className="muted">{new Date(item.createdAt).toLocaleString('zh-CN')}</span>

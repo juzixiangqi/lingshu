@@ -1,0 +1,470 @@
+openapi: 3.0.3
+info:
+  title: 灵枢文档协同 · 管理端内部 API
+  version: 1.0.0
+  description: |
+    供现有管理端后端代理调用，不对浏览器/公网直接暴露。
+
+    - 鉴权：`X-Service-Token`（必填）+ `X-Operator-Id`（必填）+ `X-Operator-Name`（可选）
+    - `X-Operator-Name` 含中文或空格时必须 URL 编码（HTTP 头不允许非 ASCII）
+    - 分页：`page` 从 1 开始；`pageSize` 默认 20、上限 100
+    - 时间：ISO 8601 UTC 字符串，前端负责本地化
+    - 错误：`{ "error": "..." }` + HTTP 状态码；服务令牌未配置时所有路径返回 404
+servers:
+  - url: /internal/admin
+    description: Lingshu 原生前缀；管理端对外暴露为 /admin/docs 时由代理层替换
+tags:
+  - name: Documents
+  - name: Members
+  - name: Users
+  - name: Ops
+security:
+  - ServiceToken: []
+paths:
+  /docs:
+    get:
+      tags: [Documents]
+      summary: 文档总览
+      parameters:
+        - $ref: '#/components/parameters/OperatorId'
+        - $ref: '#/components/parameters/OperatorName'
+        - name: keyword
+          in: query
+          description: 标题模糊匹配
+          schema: { type: string }
+        - name: kind
+          in: query
+          description: 文档类型
+          schema: { type: string, enum: [doc, sheet, mindmap] }
+        - name: ownerId
+          in: query
+          description: 创建人，支持 IM userId 或本地 uuid
+          schema: { type: string }
+        - name: includeDeleted
+          in: query
+          description: 是否包含回收站文档，默认 false
+          schema: { type: boolean, default: false }
+        - name: deletedOnly
+          in: query
+          description: 只列回收站文档（回收站页面使用），优先于 includeDeleted
+          schema: { type: boolean, default: false }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 分页结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PageMeta'
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/AdminDoc' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /docs/{id}:
+    get:
+      tags: [Documents]
+      summary: 文档详情（含成员、最近落盘时间、版本数）
+      parameters:
+        - $ref: '#/components/parameters/DocId'
+        - $ref: '#/components/parameters/OperatorId'
+        - $ref: '#/components/parameters/OperatorName'
+      responses:
+        '200':
+          description: 详情
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminDocDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Documents]
+      summary: 软删除文档（进入回收站，并断开在线协同连接）
+      parameters:
+        - $ref: '#/components/parameters/DocId'
+        - $ref: '#/components/parameters/OperatorId'
+        - $ref: '#/components/parameters/OperatorName'
+      responses:
+        '200':
+          description: 已删除
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deletedAt: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: 文档已在回收站
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /docs/{id}/restore:
+    post:
+      tags: [Documents]
+      summary: 从回收站恢复
+      parameters:
+        - $ref: '#/components/parameters/DocId'
+        - $ref: '#/components/parameters/OperatorId'
+        - $ref: '#/components/parameters/OperatorName'
+      responses:
+        '200':
+          description: 已恢复
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  doc: { $ref: '#/components/schemas/AdminDoc' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: 文档不在回收站
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /docs/{id}/members:
+    get:
+      tags: [Members]
+      summary: 成员列表
+      parameters:
+        - $ref: '#/components/parameters/DocId'
+        - $ref: '#/components/parameters/OperatorId'
+        - $ref: '#/components/parameters/OperatorName'
+      responses:
+        '200':
+          description: 成员列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  members:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminMember' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /docs/{id}/members/{userId}:
+    delete:
+      tags: [Members]
+      summary: 移除成员（所有者不可移除）
+      parameters:
+        - $ref: '#/components/parameters/DocId'
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/OperatorId'
+        - $ref: '#/components/parameters/OperatorName'
+      responses:
+        '200':
+          description: 移除后的成员列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  members:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminMember' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: 不能移除所有者
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /users:
+    get:
+      tags: [Users]
+      summary: 用户检索（按邮箱/昵称/IM userId）
+      parameters:
+        - $ref: '#/components/parameters/OperatorId'
+        - $ref: '#/components/parameters/OperatorName'
+        - name: keyword
+          in: query
+          schema: { type: string }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 分页结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PageMeta'
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/AdminUser' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /stats:
+    get:
+      tags: [Ops]
+      summary: 概览统计
+      parameters:
+        - $ref: '#/components/parameters/OperatorId'
+        - $ref: '#/components/parameters/OperatorName'
+      responses:
+        '200':
+          description: 统计数据
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminStats' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /audit-logs:
+    get:
+      tags: [Ops]
+      summary: 审计日志
+      parameters:
+        - $ref: '#/components/parameters/OperatorId'
+        - $ref: '#/components/parameters/OperatorName'
+        - name: action
+          in: query
+          description: 操作类型
+          schema:
+            type: string
+            enum: [doc.delete, doc.restore, doc.member.remove, doc.owner.transfer]
+        - name: operatorId
+          in: query
+          schema: { type: string }
+        - name: targetId
+          in: query
+          schema: { type: string }
+        - name: from
+          in: query
+          description: 起始时间（ISO 8601）
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          description: 结束时间（ISO 8601）
+          schema: { type: string, format: date-time }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 分页结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PageMeta'
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/AuditLog' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /shards:
+    get:
+      tags: [Ops]
+      summary: 分片运行状态
+      description: 逐分片探测可达性，并合并分片心跳上报的文档数与连接数
+      parameters:
+        - $ref: '#/components/parameters/OperatorId'
+        - $ref: '#/components/parameters/OperatorName'
+      responses:
+        '200':
+          description: 分片状态汇总
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShardOverview' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  securitySchemes:
+    ServiceToken:
+      type: apiKey
+      in: header
+      name: X-Service-Token
+      description: 与 INTERNAL_ADMIN_TOKEN 一致，与用户 token 完全隔离
+
+  parameters:
+    OperatorId:
+      name: X-Operator-Id
+      in: header
+      required: true
+      description: 管理端自己的账号 ID（不是 IM 用户 ID）
+      schema: { type: string }
+    OperatorName:
+      name: X-Operator-Name
+      in: header
+      required: false
+      description: 管理端账号昵称，含中文或空格时必须 URL 编码
+      schema: { type: string }
+    DocId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: pageSize
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+
+  responses:
+    BadRequest:
+      description: 参数不合法
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: 服务令牌缺失或错误
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: 来源 IP 不在白名单
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    PageMeta:
+      type: object
+      required: [total, page, pageSize]
+      properties:
+        total: { type: integer }
+        page: { type: integer }
+        pageSize: { type: integer }
+    AdminDoc:
+      type: object
+      required: [id, kind, title, owner, memberCount, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [doc, sheet, mindmap] }
+        title: { type: string }
+        owner: { $ref: '#/components/schemas/AdminUserBrief' }
+        memberCount: { type: integer }
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AdminUserBrief:
+      type: object
+      properties:
+        id: { type: string, format: uuid, description: 本地 uuid }
+        imUserId: { type: string, nullable: true }
+        email: { type: string }
+        displayName: { type: string }
+    AdminMember:
+      type: object
+      required: [userId, role, joinedAt]
+      properties:
+        userId: { type: string, format: uuid }
+        imUserId: { type: string, nullable: true }
+        email: { type: string }
+        displayName: { type: string }
+        role: { type: string, enum: [owner, editor, spectator] }
+        joinedAt: { type: string, format: date-time }
+    AdminDocDetail:
+      type: object
+      required: [doc, members, versionCount]
+      properties:
+        doc: { $ref: '#/components/schemas/AdminDoc' }
+        members:
+          type: array
+          items: { $ref: '#/components/schemas/AdminMember' }
+        lastSavedAt:
+          type: string
+          format: date-time
+          nullable: true
+        versionCount: { type: integer }
+    AdminUser:
+      type: object
+      required: [id, email, displayName, docCount]
+      properties:
+        id: { type: string, format: uuid }
+        imUserId: { type: string, nullable: true }
+        email: { type: string }
+        displayName: { type: string }
+        docCount: { type: integer }
+    AdminStats:
+      type: object
+      properties:
+        documents:
+          type: object
+          properties:
+            total: { type: integer }
+            doc: { type: integer }
+            sheet: { type: integer }
+            mindmap: { type: integer }
+            deleted: { type: integer }
+        activeDocuments24h: { type: integer }
+        distinctMembers: { type: integer }
+        memberships: { type: integer }
+        versions: { type: integer }
+        opLogRows: { type: integer }
+    AuditLog:
+      type: object
+      properties:
+        id: { type: string }
+        operatorId: { type: string }
+        operatorName: { type: string }
+        action: { type: string }
+        targetType: { type: string }
+        targetId: { type: string, nullable: true }
+        detail: { type: object, additionalProperties: true }
+        createdAt: { type: string, format: date-time }
+    ShardStatus:
+      type: object
+      required: [url, reachable, statusCode, shardId, documents, connections, uptimeSeconds, lastHeartbeatAt, error]
+      properties:
+        url: { type: string, description: COLLAB_SHARDS 中配置的分片地址 }
+        reachable: { type: boolean, description: 是否探测到 HTTP 响应 }
+        statusCode: { type: integer, nullable: true }
+        shardId: { type: string, nullable: true, description: 来自分片心跳；进程不可达时为 null }
+        documents: { type: integer, nullable: true, description: 当前打开的文档数 }
+        connections: { type: integer, nullable: true, description: 当前在线连接数 }
+        uptimeSeconds: { type: integer, nullable: true }
+        lastHeartbeatAt: { type: string, format: date-time, nullable: true }
+        error: { type: string, nullable: true }
+    ShardOverview:
+      type: object
+      required: [items, healthy, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ShardStatus' }
+        healthy: { type: integer, description: 可达分片数 }
+        total: { type: integer }

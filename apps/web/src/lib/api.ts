@@ -1,5 +1,6 @@
 import type {
   AppNotification,
+  DocComment,
   DocDetail,
   DocKind,
   DocMember,
@@ -131,12 +132,64 @@ export async function getDoc(id: string): Promise<DocDetail> {
   return data.doc;
 }
 
-export async function createDoc(kind: DocKind): Promise<DocDetail> {
+export async function createDoc(
+  kind: DocKind,
+  options: { title?: string; icon?: string | null } = {},
+): Promise<DocDetail> {
   const data = await request<{ doc: DocDetail }>('/api/docs', {
     method: 'POST',
-    body: JSON.stringify({ kind }),
+    body: JSON.stringify({ kind, ...options }),
   });
   return data.doc;
+}
+
+/** 重命名：仅 owner / editor 可用，只读成员提交会被服务端拒绝。 */
+export async function renameDoc(id: string, title: string): Promise<DocDetail> {
+  const data = await request<{ doc: DocDetail }>(`/api/docs/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ title }),
+  });
+  return data.doc;
+}
+
+/** 设置封面图标：传 null 表示清除，回退到类型默认图标。 */
+export async function updateDocIcon(id: string, icon: string | null): Promise<DocDetail> {
+  const data = await request<{ doc: DocDetail }>(`/api/docs/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ icon }),
+  });
+  return data.doc;
+}
+
+/**
+ * 文件上传：先换取预签名地址，再由浏览器直传 MinIO，
+ * 返回可直接写入正文的完整 URL（生产环境 BASE_URL 为空时走同源代理）。
+ */
+async function uploadDocFile(
+  docId: string,
+  file: File,
+  category: 'image' | 'attachment',
+  contentType: string,
+): Promise<string> {
+  const target = await request<{ uploadUrl: string; fileUrl: string }>(`/api/docs/${docId}/uploads`, {
+    method: 'POST',
+    body: JSON.stringify({ fileName: file.name, contentType, size: file.size, category }),
+  });
+  const response = await fetch(target.uploadUrl, {
+    method: 'PUT',
+    headers: { 'content-type': contentType },
+    body: file,
+  });
+  if (!response.ok) throw new Error(`文件上传失败（${response.status}）`);
+  return `${BASE_URL}${target.fileUrl}`;
+}
+
+export function uploadDocImage(docId: string, file: File): Promise<string> {
+  return uploadDocFile(docId, file, 'image', file.type);
+}
+
+export function uploadDocAttachment(docId: string, file: File, contentType = file.type): Promise<string> {
+  return uploadDocFile(docId, file, 'attachment', contentType);
 }
 
 export async function listMembers(id: string): Promise<DocMember[]> {
@@ -214,4 +267,46 @@ export async function notifyMention(
     method: 'POST',
     body: JSON.stringify({ userIds, excerpt }),
   });
+}
+
+/** 评论列表。锚点在正文 commentMark 上，不在正文里的 id 即“原文已删除”。 */
+export async function listComments(docId: string): Promise<DocComment[]> {
+  const data = await request<{ comments: DocComment[] }>(`/api/docs/${docId}/comments`);
+  return data.comments;
+}
+
+/** 发起评论：commentId 必须先以 commentMark 写进正文，再调该接口落库。 */
+export async function createComment(
+  docId: string,
+  commentId: string,
+  content: string,
+  excerpt: string,
+): Promise<DocComment[]> {
+  const data = await request<{ comments: DocComment[] }>(`/api/docs/${docId}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ id: commentId, content, excerpt }),
+  });
+  return data.comments;
+}
+
+/** 回复评论：只支持对根评论回复，回复没有正文锚点。 */
+export async function createCommentReply(
+  docId: string,
+  commentId: string,
+  content: string,
+): Promise<DocComment[]> {
+  const data = await request<{ comments: DocComment[] }>(
+    `/api/docs/${docId}/comments/${commentId}/replies`,
+    { method: 'POST', body: JSON.stringify({ content }) },
+  );
+  return data.comments;
+}
+
+/** 解决评论：仅作者或所有者。成功后客户端负责移除正文锚点。 */
+export async function resolveComment(docId: string, commentId: string): Promise<DocComment[]> {
+  const data = await request<{ comments: DocComment[] }>(
+    `/api/docs/${docId}/comments/${commentId}`,
+    { method: 'PATCH' },
+  );
+  return data.comments;
 }

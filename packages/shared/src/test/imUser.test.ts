@@ -31,7 +31,11 @@ describe('createImUserResolver', () => {
         user: { userId: 123, userName: '张三', nickName: '', email: 'Zhang@Example.COM ' },
       }),
     );
-    const resolver = createImUserResolver({ userinfoUrl: 'http://im.local/getInfo' });
+    const resolver = createImUserResolver({
+      userinfoUrl: 'http://im.local/getInfo',
+      tokenHeader: 'Authorization',
+      tokenPrefix: 'Bearer',
+    });
 
     const user = await resolver('token-1');
     expect(user).toEqual({ imUserId: '123', email: 'zhang@example.com', displayName: '张三' });
@@ -133,6 +137,7 @@ describe('createImUserResolver', () => {
     const fetchMock = stubFetch(() => jsonResponse({ user: { userId: 12, userName: 'name' } }));
     const resolver = createImUserResolver({
       userinfoUrl: 'http://im.local/getInfo',
+      tokenHeader: 'Authorization',
       tokenPrefix: '',
     });
 

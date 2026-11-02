@@ -12,15 +12,29 @@
  * =====================================================================
  */
 
+/** 一次协同写入的操作者，来自 Hocuspocus 鉴权上下文。 */
+export interface Operator {
+  /** 本地 users 表 uuid；历史数据或服务端本地写入为 null */
+  userId: string | null;
+  userName: string;
+}
+
 export interface SnapshotPayload {
   documentName: string;
   documentId: string;
   /** Y.encodeStateAsUpdate 的完整状态 */
   state: Uint8Array;
+  /** 触发本次落盘的最后一位编辑者；无人在线编辑时为 null */
+  operator?: Operator | null;
 }
 
 export interface DocPersistence {
   load(documentName: string): Promise<Uint8Array | null>;
   saveSnapshot(payload: SnapshotPayload): Promise<void>;
-  appendOp(documentName: string, documentId: string, update: Uint8Array): Promise<void>;
+  appendOp(
+    documentName: string,
+    documentId: string,
+    update: Uint8Array,
+    operator?: Operator | null,
+  ): Promise<void>;
 }

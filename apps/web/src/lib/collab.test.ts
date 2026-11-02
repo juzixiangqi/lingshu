@@ -33,6 +33,7 @@ const detail: DocDetail = {
   id: 'doc-1',
   kind: 'doc',
   title: '示例',
+  icon: null,
   role: 'editor',
   updatedAt: '2026-01-01T00:00:00.000Z',
   collab: { url: 'ws://localhost:1234', documentNames: ['doc-1/body'] },

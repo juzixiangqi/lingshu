@@ -8,6 +8,8 @@ import type { DocKind } from './types.js';
  *   - `<docId>/sheet/<id>` 每个 sheet 独立的 Y.Doc
  * 文档（笺）一期不做真分片，但仍走统一命名规则，为二期分章预留：
  *   - `<docId>/body`
+ * 思维导图（图）单文档单 Y.Doc，节点级 CRDT 协同：
+ *   - `<docId>/mind`
  */
 export function workbookDocumentName(docId: string): string {
   return `${docId}/workbook`;
@@ -21,8 +23,13 @@ export function bodyDocumentName(docId: string): string {
   return `${docId}/body`;
 }
 
+export function mindDocumentName(docId: string): string {
+  return `${docId}/mind`;
+}
+
 export function documentNamesFor(docId: string, kind: DocKind): string[] {
   if (kind === 'doc') return [bodyDocumentName(docId)];
+  if (kind === 'mindmap') return [mindDocumentName(docId)];
   return [workbookDocumentName(docId), sheetDocumentName(docId)];
 }
 

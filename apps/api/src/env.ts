@@ -27,20 +27,37 @@ function readBoolean(name: string, fallback: boolean): boolean {
   return raw.toLowerCase() === 'true';
 }
 
+/** 区分“未配置”和“配成空字符串”：HuLa 的 token 前缀就是空字符串。 */
+function readOptional(name: string, fallback: string): string {
+  const value = process.env[name];
+  return value === undefined ? fallback : value;
+}
+
 export const env = {
   port: readNumber('API_PORT', 8787),
   databaseUrl: readString('DATABASE_URL', 'postgres://lingshu:lingshu@localhost:5432/lingshu'),
   redisUrl: readString('REDIS_URL', 'redis://localhost:6379'),
   jwtSecret: readString('JWT_SECRET', 'dev-only-change-me'),
-  /** local：自建账号密码登录；im：信任若依 IM 签发的 token */
+  /** local：自建账号密码登录；im：信任 IM 签发的 token（HuLa Sa-Token / 若依 JWT） */
   authMode: (readString('AUTH_MODE', 'local') === 'im' ? 'im' : 'local') as 'local' | 'im',
   im: {
-    /** 若依 /getInfo 完整地址；留空则 im 模式下所有请求都会因身份服务不可用被拒绝 */
+    /** 取当前用户的完整地址；留空则 im 模式下所有请求都会因身份服务不可用被拒绝 */
     userinfoUrl: readString('IM_USERINFO_URL', ''),
-    tokenHeader: readString('IM_TOKEN_HEADER', 'Authorization'),
-    tokenPrefix: readString('IM_TOKEN_PREFIX', 'Bearer '),
+    /** HuLa 用 Token，若依用 Authorization */
+    tokenHeader: readString('IM_TOKEN_HEADER', 'Token'),
+    /** HuLa 为空，若依为 Bearer */
+    tokenPrefix: readOptional('IM_TOKEN_PREFIX', ''),
     timeoutMs: readNumber('IM_USERINFO_TIMEOUT_MS', 5000),
     cacheTtlMs: readNumber('IM_USER_CACHE_TTL_MS', 60_000),
+  },
+  internalAdmin: {
+    /** 管理 API 服务令牌；留空则管理路由一律返回 404，等同未启用 */
+    token: readString('INTERNAL_ADMIN_TOKEN', ''),
+    /** 允许调用管理 API 的来源 IP，逗号分隔；留空则不限制 */
+    ips: readString('INTERNAL_ADMIN_IPS', '')
+      .split(',')
+      .map((ip) => ip.trim())
+      .filter(Boolean),
   },
   // 免密登录仅供开发与 M0 压测脚本使用，生产环境默认关闭
   devLoginEnabled: readBoolean('DEV_LOGIN_ENABLED', process.env.NODE_ENV !== 'production'),

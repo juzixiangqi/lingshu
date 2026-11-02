@@ -14,4 +14,30 @@ export async function presignUpload(objectName: string, expirySeconds = 600): Pr
   return storage.presignedPutObject(env.s3.bucket, objectName, expirySeconds);
 }
 
+let bucketReady: Promise<void> | null = null;
+
+/** 首次上传时按需建桶；失败后清空缓存，下次请求可重试。 */
+export function ensureBucket(): Promise<void> {
+  if (!bucketReady) {
+    bucketReady = (async () => {
+      if (!(await storage.bucketExists(env.s3.bucket))) {
+        await storage.makeBucket(env.s3.bucket, 'us-east-1');
+      }
+    })().catch((error: unknown) => {
+      bucketReady = null;
+      throw error;
+    });
+  }
+  return bucketReady;
+}
+
+/** 读取对象字节流，供 API 代理图片（<img> 无法携带 Authorization）。 */
+export function openObject(objectName: string) {
+  return storage.getObject(env.s3.bucket, objectName);
+}
+
+export function statObject(objectName: string) {
+  return storage.statObject(env.s3.bucket, objectName);
+}
+
 export const storageBucket = env.s3.bucket;

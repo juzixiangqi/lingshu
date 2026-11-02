@@ -17,5 +17,7 @@ export function broadcastsCursor(role: DocRole): boolean {
 }
 
 export function pickTitle(kind: DocSummary['kind']): string {
-  return kind === 'doc' ? '未命名文档' : '未命名表格';
+  if (kind === 'doc') return '未命名文档';
+  if (kind === 'mindmap') return '未命名导图';
+  return '未命名表格';
 }

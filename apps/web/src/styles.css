@@ -38,6 +38,49 @@ body {
   margin: 0 0 4px;
 }
 
+/* 文档标题就地重命名：平时看起来就是标题，悬停才提示可编辑 */
+.doc-title-button {
+  display: block;
+  max-width: 100%;
+  padding: 2px 8px;
+  margin: 0 0 4px -8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-title-button:hover:not(:disabled) {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.doc-title-button:disabled {
+  cursor: default;
+  color: var(--text);
+}
+
+.doc-title-input {
+  display: block;
+  width: min(520px, 60vw);
+  padding: 2px 8px;
+  margin: 0 0 4px -8px;
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
 .actions {
   display: flex;
   gap: 8px;
@@ -145,6 +188,362 @@ button.primary:hover {
   font-size: 12px;
 }
 
+/* 列表搜索：标题或类型都能命中，右侧展示统计 */
+.doc-search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.doc-search-input {
+  flex: 1;
+  max-width: 360px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+/* 标题行：封面图标 + 标题，图标点击后弹出候选面板 */
+.doc-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.doc-title-row .doc-title-button,
+.doc-title-row .doc-title-input,
+.doc-title-row h1 {
+  margin: 0;
+}
+
+.doc-icon-picker {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.doc-icon-button {
+  padding: 2px 4px;
+  border-color: transparent;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.doc-icon-button:hover:not(:disabled) {
+  border-color: var(--border);
+  color: inherit;
+}
+
+.doc-icon-static {
+  display: inline-block;
+  padding: 2px 4px;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.doc-icon-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 40;
+  width: 248px;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+
+.doc-icon-option {
+  padding: 4px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.doc-icon-option:hover:not(:disabled),
+.doc-icon-option.active {
+  background: #eef3ff;
+}
+
+.doc-icon-remove {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+/* 列表项类型图标：未设置封面时按文档类型兜底 */
+.doc-icon {
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+/* 新建文档模板选择：居中弹窗 + 卡片网格 */
+.doc-template-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgb(29 33 41 / 35%);
+}
+
+.doc-template-dialog {
+  width: min(720px, 100%);
+  max-height: 86vh;
+  overflow-y: auto;
+  padding: 20px 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgb(29 33 41 / 22%);
+}
+
+.doc-template-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.doc-template-header h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.doc-template-header .muted {
+  margin: 0;
+}
+
+.doc-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.doc-template-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px;
+  text-align: left;
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.doc-template-card:hover {
+  border-color: var(--primary);
+  background: #f7f9ff;
+}
+
+.doc-template-icon {
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.doc-template-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.doc-template-desc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* 正文内嵌导图：卡片只做引用，点击在抽屉里打开原导图 */
+.doc-mindmap-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0.8em 0;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.doc-mindmap-card.selected {
+  border-color: var(--primary);
+}
+
+.doc-mindmap-open {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+}
+
+.doc-mindmap-open:hover:not(:disabled) {
+  color: inherit;
+}
+
+.doc-mindmap-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.doc-mindmap-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.doc-mindmap-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.doc-mindmap-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.doc-mindmap-action {
+  font-size: 12px;
+  color: var(--primary);
+}
+
+.doc-mindmap-remove {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.mindmap-embed-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgb(29 33 41 / 30%);
+}
+
+.mindmap-embed-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(820px, 94vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -12px 0 32px rgb(0 0 0 / 14%);
+}
+
+.mindmap-embed-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mindmap-embed-heading {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.mindmap-embed-frame {
+  flex: 1;
+  width: 100%;
+  border: none;
+}
+
+/* 导图页 ?embed=1：隐藏顶栏后让画布铺满 iframe */
+.mindmap-embed-page {
+  max-width: none;
+  padding: 0;
+}
+
+.mindmap-embed-page .mindmap-main {
+  margin-top: 0;
+}
+
+.mindmap-embed-page .mindmap-shell {
+  height: 100vh;
+  min-height: 0;
+  border: none;
+  border-radius: 0;
+}
+
+/* 插入导图弹窗：搜索 + 可选列表 */
+.insert-mindmap-dialog {
+  width: min(560px, 100%);
+}
+
+.insert-mindmap-search {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.insert-mindmap-search input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.insert-mindmap-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 46vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.insert-mindmap-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+}
+
+.insert-mindmap-item:hover {
+  background: #f3f5f9;
+  border-color: var(--border);
+}
+
+.insert-mindmap-title {
+  flex: 1;
+  font-weight: 500;
+}
+
 .editor-shell {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -154,14 +553,17 @@ button.primary:hover {
   min-height: 60vh;
 }
 
-.editor-status {
+/* 正文底部状态行：字数与协同/保存状态淡显，不再占用顶部空间 */
+.editor-footer {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
   gap: 12px;
-  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
   font-size: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px dashed var(--border);
-  margin-bottom: 12px;
+  opacity: 0.75;
 }
 
 .editor-surface {
@@ -173,6 +575,312 @@ button.primary:hover {
 
 .editor-surface p {
   margin: 0 0 0.8em;
+}
+
+.editor-surface h1,
+.editor-surface h2,
+.editor-surface h3 {
+  margin: 1.1em 0 0.5em;
+  line-height: 1.35;
+}
+
+.editor-surface h1 {
+  font-size: 24px;
+}
+
+.editor-surface h2 {
+  font-size: 20px;
+}
+
+.editor-surface h3 {
+  font-size: 17px;
+}
+
+.editor-surface ul,
+.editor-surface ol {
+  margin: 0 0 0.8em;
+  padding-left: 1.4em;
+}
+
+.editor-surface blockquote {
+  margin: 0 0 0.8em;
+  padding: 4px 12px;
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+}
+
+.editor-surface a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.editor-surface img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+.editor-surface img.ProseMirror-selectednode {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.editor-surface .doc-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.editor-surface .doc-attachment:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.editor-surface code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--bg);
+  font-size: 13px;
+}
+
+.editor-surface pre {
+  margin: 0 0 0.8em;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--bg);
+  overflow-x: auto;
+}
+
+.editor-surface pre code {
+  padding: 0;
+  background: none;
+}
+
+.editor-surface mark {
+  padding: 0 2px;
+  background: #fff3a3;
+}
+
+.editor-surface .tableWrapper {
+  margin: 0 0 0.9em;
+  overflow-x: auto;
+}
+
+.editor-surface table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.editor-surface th,
+.editor-surface td {
+  min-width: 60px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.editor-surface th {
+  background: var(--bg);
+  font-weight: 600;
+}
+
+.editor-surface table p {
+  margin: 0;
+}
+
+.editor-surface ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.editor-surface ul[data-type='taskList'] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 2px 0;
+}
+
+.editor-surface ul[data-type='taskList'] li > label {
+  display: flex;
+  align-items: center;
+  margin-top: 3px;
+}
+
+.editor-surface ul[data-type='taskList'] li > div {
+  flex: 1;
+}
+
+.doc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  border-bottom: 1px dashed var(--border);
+}
+
+.doc-tool {
+  min-width: 28px;
+  padding: 2px 7px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+/* 导出按钮推到工具条右侧，只读成员进页面时也能直接导出 */
+.doc-export {
+  margin-left: auto;
+}
+
+/* 文档内查找：工具条上方一行，命中项在正文里高亮 */
+.doc-find-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  margin-bottom: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.doc-find-input {
+  flex: 1;
+  min-width: 180px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.doc-find-count {
+  min-width: 56px;
+  text-align: center;
+  font-size: 12px;
+}
+
+/* 查找命中：普通命中浅黄，当前命中深黄 */
+.editor-surface .doc-find-hit {
+  background: #ffe9a8;
+  border-radius: 2px;
+}
+
+.editor-surface .doc-find-hit-active {
+  background: #ffc94d;
+}
+
+.doc-tool[data-active='true'] {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: #eef3ff;
+}
+
+.doc-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--border);
+}
+
+.doc-tool-note {
+  font-size: 12px;
+}
+
+/* 顶部只保留撤销/重做与插入入口，插入项收进下拉菜单 */
+.doc-insert {
+  position: relative;
+}
+
+.doc-insert-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 40;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.doc-insert-item {
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.doc-insert-item:hover:not(:disabled) {
+  background: #f3f5f9;
+}
+
+.doc-insert-divider {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border);
+}
+
+/* 选区气泡条：随选中内容浮出，承载格式操作；链接输入独占第二行 */
+.doc-bubble {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.doc-link-editor {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.doc-link-input {
+  flex: 1;
+  min-width: 240px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.doc-bubble .doc-tool {
+  padding: 3px 6px;
+}
+
+.doc-bubble-underline {
+  text-decoration: underline;
+}
+
+.doc-bubble-strike {
+  text-decoration: line-through;
 }
 
 .univer-container {
@@ -363,6 +1071,54 @@ button.primary:hover {
   color: var(--muted);
 }
 
+/* 斜杠命令弹窗：输入 / 后悬浮在光标下方 */
+.slash-popup {
+  position: fixed;
+  z-index: 30;
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(29 33 41 / 18%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.slash-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.slash-item.active {
+  background: var(--surface-strong, #eef2f9);
+}
+
+.slash-item-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.slash-empty {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 /* 站内通知条目 */
 .notification-item {
   border: 1px solid var(--border);
@@ -395,4 +1151,498 @@ button.primary:hover {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+
+/* 划词评论：正文锚点 + 右侧面板 */
+.editor-surface .doc-comment {
+  background: #ffe9a8;
+  border-bottom: 2px solid #e6b800;
+  cursor: pointer;
+}
+
+.editor-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.editor-main {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+/* 评论抽屉：默认收起为右下角胶囊，展开后浮在正文右侧，不挤占正文宽度 */
+.comment-panel {
+  position: fixed;
+  top: 84px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 30;
+  width: 320px;
+  overflow-y: auto;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgb(29 33 41 / 16%);
+}
+
+.comment-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.comment-panel-close {
+  font-size: 12px;
+}
+
+.comment-dock {
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(29 33 41 / 14%);
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.comment-dock-count {
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  border-radius: 9px;
+  background: #2f6fed;
+  color: #fff;
+  font-size: 11px;
+}
+
+/* 右侧大纲：仅有标题时出现 */
+.doc-outline {
+  width: 180px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+}
+
+.doc-outline-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.doc-outline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.doc-outline-item {
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 4px 6px;
+  border-radius: 6px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-outline-item:hover {
+  background: var(--surface-strong, #eef2f9);
+}
+
+.doc-outline-item.level-2 {
+  padding-left: 16px;
+  font-size: 12px;
+}
+
+.doc-outline-item.level-3 {
+  padding-left: 28px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* 块级 hover 手柄：定位相对 .editor-main */
+.block-handle {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgb(29 33 41 / 12%);
+}
+
+.block-handle-btn {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: none;
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.block-handle-btn:hover {
+  background: var(--surface-strong, #eef2f9);
+  color: var(--text);
+}
+
+.block-handle-grip {
+  cursor: grab;
+}
+
+/* 拖动排序时的插入落点指示线 */
+.block-drop-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: #2f6fed;
+  z-index: 18;
+  pointer-events: none;
+}
+
+.block-handle-menu {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  margin-left: 6px;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(29 33 41 / 14%);
+}
+
+/* 行首「+」插入菜单：块类型较多，限高滚动避免超出视口 */
+.block-insert-menu {
+  min-width: 168px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+/* 上传失败等提示：贴在手柄下方，短暂显示后自动消失 */
+.block-handle-note {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  white-space: nowrap;
+  padding: 4px 8px;
+  border: 1px solid #ffccc7;
+  border-radius: 6px;
+  background: #fff1f0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.comment-panel-title {
+  margin: 0;
+  font-size: 14px;
+}
+
+.comment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.comment-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.comment-item[data-resolved='true'] {
+  opacity: 0.65;
+}
+
+.comment-excerpt {
+  display: block;
+  width: 100%;
+  padding: 4px 6px;
+  border: none;
+  border-left: 3px solid #e6b800;
+  background: var(--bg);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comment-orphan {
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.comment-content {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.comment-meta {
+  font-size: 12px;
+}
+
+.comment-resolve {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+/* 回复线程：缩进 + 左侧竖线，与根评论区分层级 */
+.comment-replies {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 10px;
+  border-left: 2px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.comment-reply-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.comment-reply-toggle {
+  padding: 2px 8px;
+  font-size: 12px;
+  align-self: flex-start;
+}
+
+.comment-draft {
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.comment-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  resize: vertical;
+}
+
+.comment-draft-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.comment-draft .comment-excerpt {
+  margin: 0;
+}
+
+.comment-note {
+  margin: 6px 0;
+}
+
+.comment-empty {
+  font-size: 13px;
+}
+
+.comment-resolved {
+  margin-top: 12px;
+}
+
+button.ghost {
+  border: none;
+  background: none;
+  color: var(--muted);
+  padding: 4px 6px;
+}
+
+button.ghost:hover {
+  color: var(--primary);
+}
+
+@media (max-width: 900px) {
+  .editor-layout {
+    flex-direction: column;
+  }
+
+  .comment-panel {
+    top: 64px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+
+  .doc-outline {
+    display: none;
+  }
+}
+
+/* 思维导图（图）：画布需要比文档更宽，工具栏常驻顶部 */
+.page-wide {
+  max-width: none;
+}
+
+.mindmap-main {
+  margin-top: 16px;
+}
+
+.mindmap-shell {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 150px);
+  min-height: 520px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mindmap-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mindmap-toolbar button {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.mindmap-toolbar button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mindmap-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--border);
+}
+
+.mindmap-hint {
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.mindmap-layout {
+  padding: 3px 6px;
+  font-size: 12px;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.mindmap-layout:disabled {
+  opacity: 0.45;
+}
+
+.mindmap-presence-bar {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-left: 8px;
+}
+
+.mindmap-presence-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+/* 远端协作者正在选中的节点：描边 + 姓名标签，纯临时态，不改数据 */
+.mindmap-canvas me-tpc.remote-selected {
+  outline: 2px solid var(--presence-color, #2f6fed);
+  outline-offset: 2px;
+}
+
+.mindmap-presence-tag {
+  position: absolute;
+  top: -18px;
+  right: -4px;
+  z-index: 10;
+  padding: 0 6px;
+  font-size: 10px;
+  line-height: 16px;
+  color: #fff;
+  white-space: nowrap;
+  pointer-events: none;
+  border-radius: 8px;
+}
+
+.mindmap-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-status {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 12px;
+  border-top: 1px dashed var(--border);
+  font-size: 12px;
+  opacity: 0.75;
 }

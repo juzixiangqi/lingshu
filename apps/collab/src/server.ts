@@ -11,6 +11,7 @@ import { env } from './env.js';
 import { authenticateDocument } from './impl/auth.js';
 import { addLiveConnection, removeLiveConnection } from './impl/liveConnections.js';
 import { persistence } from './impl/persistence.js';
+import type { Operator } from './contracts/persistence.js';
 
 /**
  * 单文档连接配额。按 socketId 记账，避免重复连接/断开时计数漂移。
@@ -27,6 +28,13 @@ const cursorOwners = new Map<string, Map<number, number>>();
 
 /** 每个文档里各客户端最后一次完整状态放行的时间，用于刷新 y-protocols 的超时计数。 */
 const awarenessPublishedAt = new Map<string, Map<number, number>>();
+
+/**
+ * 每个文档最后一次鉴权写入的操作者。
+ * 快照落盘是 30 秒防抖聚合的，Database 扩展的 store 回调拿不到 connection context，
+ * 因此用 onChange 记录的“最后写者”作为该版本的归属。
+ */
+const lastOperators = new Map<string, Operator>();
 
 /**
  * cursor/selection 之外是否发生了变化。
@@ -144,6 +152,7 @@ export function createCollabServer(): Server<CollabContext> {
               documentName,
               documentId: docIdFromDocumentName(documentName),
               state,
+              operator: lastOperators.get(documentName) ?? null,
             })
             .catch((error: unknown) => {
               // 存储故障不得打断实时协同
@@ -204,12 +213,17 @@ export function createCollabServer(): Server<CollabContext> {
     afterUnloadDocument: async ({ documentName }) => {
       cursorOwners.delete(documentName);
       awarenessPublishedAt.delete(documentName);
+      lastOperators.delete(documentName);
     },
 
-    onChange: async ({ documentName, update }) => {
+    onChange: async ({ documentName, update, context }) => {
+      const operator: Operator | null = context?.user
+        ? { userId: context.user.id, userName: context.user.displayName }
+        : null;
+      if (operator) lastOperators.set(documentName, operator);
       // op 流写入不进入广播热路径，失败只记录日志
       void persistence
-        .appendOp(documentName, docIdFromDocumentName(documentName), update)
+        .appendOp(documentName, docIdFromDocumentName(documentName), update, operator)
         .catch((error: unknown) => {
           console.error('[collab] op 流写入失败', error);
         });
